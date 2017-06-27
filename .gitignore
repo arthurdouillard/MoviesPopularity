@@ -1,5 +1,5 @@
 .idea
-build
+out
 
 *.sw?
 *.jar
