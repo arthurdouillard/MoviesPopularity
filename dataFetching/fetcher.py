@@ -9,10 +9,17 @@ import requests
 
 
 def make_request(query, api):
-    query = 'https://api.themoviedb.org/3/movie/{}?api_key={}'\
-            .format(query, api)
-
-    return requests.get(query)
+    while True:
+        try:
+            query = 'https://api.themoviedb.org/3/movie/{}?api_key={}'\
+                    .format(query, api)
+            response = requests.get(query)
+            return response
+        except KeyboardInterrupt:
+            print('Exiting program after keyboard interrupt.')
+            sys.exit(1)
+        except:
+            print('No internet...\r', end='')
 
 
 def get_max_id(api):
