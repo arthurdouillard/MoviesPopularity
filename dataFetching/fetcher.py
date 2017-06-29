@@ -90,6 +90,9 @@ def argparser(argv):
     if args.min_id is None:
         args.min_id = 1
 
+    if args.verbose:
+        print('Fetching movies from {} to {} (included).'\
+              .format(args.min_id, args.max_id))
     data = fetch_all_data(args.min_id, args.max_id, args.api, args.verbose)
     with open(args.save, 'w+') as f:
         f.write(json.dumps(data, indent=2))
