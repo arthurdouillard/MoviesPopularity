@@ -1,20 +1,17 @@
 package main.scala
 
 import java.util.Properties
-import org.apache.kafka.clients.producer.{Callback, RecordMetadata, ProducerRecord, KafkaProducer}
-
-import scala.concurrent.Promise
+import org.apache.kafka.clients.producer.{ProducerRecord, KafkaProducer}
 
 
-case class Producer(topic: String, brokerList:String, sync: Boolean) {
+class Producer(topic: String, brokerList:String) {
   val kafkaProps = new Properties()
   kafkaProps.put("bootstrap.servers", brokerList)
 
   // This is mandatory, even though we don't send keys
   kafkaProps.put("key.serializer", "org.apache.kafka.common.serialization.StringSerializer")
   kafkaProps.put("value.serializer", "org.apache.kafka.common.serialization.StringSerializer")
-  kafkaProps.put("acks", "1")
-  kafkaProps.put("producer.type", if(sync) "sync" else "async")
+  kafkaProps.put("acks", "all")
 
   // how many times to retry when produce request fails?
   kafkaProps.put("retries", "3")
@@ -24,10 +21,6 @@ case class Producer(topic: String, brokerList:String, sync: Boolean) {
   private val producer = new KafkaProducer[String, String](kafkaProps)
 
   def send(value: String): Unit = {
-    if(sync) sendSync(value) else sendAsync(value)
-  }
-
-  def sendSync(value: String): Unit = {
     val record = new ProducerRecord[String, String](topic, value)
     try {
       producer.send(record).get()
@@ -36,17 +29,6 @@ case class Producer(topic: String, brokerList:String, sync: Boolean) {
         e.printStackTrace
         System.exit(1)
     }
-  }
-
-  def sendAsync(value: String):Unit = {
-    val record = new ProducerRecord[String, String](topic, value)
-    val p = Promise[(RecordMetadata, Exception)]()
-    producer.send(record, new Callback {
-      override def onCompletion(metadata: RecordMetadata, exception: Exception): Unit = {
-        p.success((metadata, exception))
-      }
-    })
-
   }
 
   def close():Unit = producer.close()
