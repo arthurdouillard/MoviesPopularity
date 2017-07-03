@@ -4,3 +4,5 @@ out
 *.sw?
 *.jar
 *.class
+target/
+tmp/
