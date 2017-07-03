@@ -52,12 +52,19 @@ def fetch_reviews(movie_id, api):
     return reviews_content
 
 
-def fetch_all_data(min_id, max_id, api, verbose):
+def fetch_all_data(min_id, max_id, api, verbose, step):
     data = {}
     req_count = 0
-    for i in range(min_id, max_id+1):
+    for c, i in enumerate(range(min_id, max_id+1)):
+        if step is not None and c % step == 0:
+            save_data('tmp_{}.json'.format(c), data)
+            if verbose:
+                print(' ' * 30 + '\r', end='')
+                print('Saving tmp...\r', end='')
+
         if verbose:
             percent = (i - min_id) / (max_id - min_id) * 100
+            print(' ' * 30 + '\r', end='')
             print('Progress:\t{} %\r'.format(round(percent, 2)), end='')
 
         movie_name, rating = get_movie_info(i, api)
@@ -81,6 +88,11 @@ def fetch_all_data(min_id, max_id, api, verbose):
     return data
 
 
+def save_data(name, data):
+    with open(name, 'w+') as f:
+        f.write(json.dumps(data, indent=2))
+
+
 def argparser(argv):
     parser = argparse.ArgumentParser(description="Fetcher")
     parser.add_argument('--api', action='store', dest='api')
@@ -88,6 +100,7 @@ def argparser(argv):
     parser.add_argument('--max', action='store', dest='max_id', type=int)
     parser.add_argument('--verbose', action='store_true', dest='verbose')
     parser.add_argument('--save', action='store', dest='save', required=True)
+    parser.add_argument('--step', action='store', dest='step', type=int)
 
     args = parser.parse_args(argv)
     if args.api is None:
@@ -100,9 +113,9 @@ def argparser(argv):
     if args.verbose:
         print('Fetching movies from {} to {} (included).'\
               .format(args.min_id, args.max_id))
-    data = fetch_all_data(args.min_id, args.max_id, args.api, args.verbose)
-    with open(args.save, 'w+') as f:
-        f.write(json.dumps(data, indent=2))
+    data = fetch_all_data(args.min_id, args.max_id, args.api, args.verbose,
+                          args.step)
+    save_data(args.save, data)
 
 
 if __name__ == '__main__':
