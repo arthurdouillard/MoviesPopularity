@@ -1,6 +1,7 @@
 MAX		=	100
 ADDR	=	"localhost:9092"
-TOPIC	=	"movies"
+T_RAW	= 	"raw"
+T_SENT	= 	"sent"
 
 all: kafka fetch launch
 
@@ -16,7 +17,13 @@ kafka-stop:
 
 fetch:
 	echo "Fetching data..."
-	./dataFetching/imdbFetcher.py --max ${MAX} --kafka ${ADDR} --topic ${TOPIC}
+	./dataFetching/imdbFetcher.py --max ${MAX} --kafka ${ADDR} --topic ${T_RAW}
+
+sentiment:
+	echo "Analysing sentiments..."
+	./sentimentAnalysis/imdbFetcher.py --kafka ${ADDR} --src ${T_RAW}\
+		--dst ${T_SENT} --clf sentimentAnalysis/classifier.pkl
+
 
 launch:
 	echo "Launching..."
