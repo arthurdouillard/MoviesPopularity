@@ -12,23 +12,24 @@ import kafka.serializer.StringDecoder
 object Main {
   def main(args: Array[String]) {
 
-    System.out.println(args)
-
     if (args.length < 2) {
       System.err.println("Please specify the following arguments: <brokers_list> and <topics_list>")
       System.exit(1)
     }
 
     val Array(brokers, topics) = args
-    val sc = new SparkConf().setMaster("local[*]")
-                           .setAppName("MoviesPopularity")
-    val ssc = new StreamingContext(sc, Seconds(2))
+    System.out.println(brokers)
+    System.out.println(topics)
+    val sc = new SparkConf().setAppName("MoviesPopularity").setMaster("local[*]")
+    val ssc = new StreamingContext(sc, Seconds(1))
 
     val topicsSet = topics.split(",").toSet
-    val kafkaParams = Map[String, String]("metadata.broker.list" -> brokers)
-    val data = KafkaUtils.createDirectStream[String, String, StringDecoder, StringDecoder](
+    val kafkaParams = Map[String, String]("bootstrap.servers" -> brokers)
+    val stream = KafkaUtils.createDirectStream[String, String, StringDecoder, StringDecoder](
       ssc, kafkaParams, topicsSet)
 
-    data.map(System.out.println(_))
+    stream.print()
+    ssc.start()
+    ssc.awaitTermination()
   }
 }
