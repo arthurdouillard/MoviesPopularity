@@ -3,6 +3,7 @@ import sys
 
 import requests
 from bs4 import BeautifulSoup
+from kafka import KafkaProducer
 
 def fetch_page(url):
     response = requests.get(url)
@@ -13,7 +14,7 @@ def parse_movies_list():
     url = 'http://www.the-numbers.com/movie/budgets/all'
     html = fetch_page(url).text
     soup = BeautifulSoup(html.encode('utf-8'), 'html.parser')
-
+    producer = KafkaProducer(bootstrap_servers='localhost:9092')
     parse_dollars = lambda x: int(x.replace('$', '').replace(',', ''))
 
     movies = soup.find_all('td')
@@ -35,6 +36,7 @@ def parse_movies_list():
         movie_data['budget'] = parse_dollars(movies[i+3].text)
         movie_data['gross'] = parse_dollars(movies[i+5].text)
         movie_data.update(get_imdb_data(name))
+        producer.send('movies', json.dumps(movie_data).encode())
         movies_data.append(movie_data)
 
     return movies_data

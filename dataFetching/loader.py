@@ -2,13 +2,18 @@
 
 import argparse
 import sys
+import json
 from kafka import KafkaProducer
 
 def read_file(name):
     producer = KafkaProducer(bootstrap_servers='localhost:9092')
     with open(name, 'r') as f:
-        for line in f:
-            producer.send('movies', line.encode())
+        json_data = json.load(f)
+
+        for obj in json_data:
+            producer.send('movies', json.dumps(json_data[obj]).encode())
+
+    producer.close()
 
 def argparser(argv):
     parser = argparse.ArgumentParser(description="Loader")
