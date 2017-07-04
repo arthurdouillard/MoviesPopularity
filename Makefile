@@ -21,7 +21,7 @@ fetch:
 
 sentiment:
 	echo "Analysing sentiments..."
-	./sentimentAnalysis/imdbFetcher.py --kafka ${ADDR} --src ${T_RAW}\
+	./sentimentAnalysis/sentimentAnalyser.py --kafka ${ADDR} --src ${T_RAW}\
 		--dst ${T_SENT} --clf sentimentAnalysis/classifier.pkl
 
 
