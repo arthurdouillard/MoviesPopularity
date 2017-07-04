@@ -82,10 +82,10 @@ def get_imdb_data(name, args):
                     .format(url_imdb, movie_url.split('/')[2])
     response = fetch_page(reviews_url, args)
     if response.status_code != 200:
-        movie.update({'reviews': []})
-        return movie
+        return {}
     reviews = parse_reviews(BeautifulSoup(response.text.encode('utf-8'),
                                           'html.parser'))
+
     movie.update({'reviews': reviews})
     return movie
 
