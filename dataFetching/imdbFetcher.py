@@ -38,7 +38,7 @@ def parse_movies_list(args):
 
         if args.verbose:
             print('{}\r'.format(spaces), end='')
-            percent = c / args.max * 100
+            percent = round(c / args.max * 100, 2)
             print('{} %\t{}\r'.format(percent, name), end='')
 
         movie_data = {}
