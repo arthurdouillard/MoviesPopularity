@@ -16,6 +16,7 @@ class Producer(topic: String, brokerList:String) {
   // how many times to retry when produce request fails?
   kafkaProps.put("retries", "3")
   kafkaProps.put("linger.ms", "5")
+  kafkaProps.put("producer.type", "async")
 
   //this is our actual connection to Kafka!
   private val producer = new KafkaProducer[String, String](kafkaProps)
