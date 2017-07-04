@@ -11,11 +11,24 @@ Setup:
 - Launch the data fetching or the data loader which writes into kafka
 - Launch the program with the following command: *sbt "run **<brokers_list>** **<topics_list>**"*
 
-4 steps
+## Steps
 
+### Init servers
 
-1.  Fetch movies data
-2.  Analyse and process that data
-3.  Persistence of the data
-4.  Graphical visualization.
+```shell
+> zkserver start
+> kafka-server-start /usr/local/etc/kafka/server.properties &
+```
+
+### Fetch movies data
+
+```shell
+> ./dataFetching/imdbFetcher.py --max {NUMBER_OF_MOVIES} --kafka {BROKER_ADDR} --topic {TOPIC_1} --verbose
+```
+
+### Analyse sentiments
+
+```shell
+> ./sentimentAnalysis/sentimentAnalyser.py --src {TOPIC_1} --dst {TOPIC_2} --clf {PRE_TRAIN_CLF} --kafka {BROKER} --verbose
+```
 
