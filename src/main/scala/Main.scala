@@ -4,7 +4,7 @@ import org.apache.spark.SparkConf
 import org.apache.spark.streaming.kafka.KafkaUtils
 import org.apache.spark.streaming.{Seconds, StreamingContext}
 import kafka.serializer.StringDecoder
-import model.Movie
+import model.{Movie, Review}
 import play.api.libs.json.Json
 
 /**
@@ -33,13 +33,19 @@ object Main {
 
     stream.map(_._2)
           .map(Json.parse(_).as[Movie])
+          .map(x => (x, calculateFinalScore(x)))
           .print()
 
     ssc.start()
     ssc.awaitTermination()
   }
 
-  def calculateFinalScore(movie: Movie): Unit = {
+  def calculateFinalScore(movie: Movie): Float = {
+    var total = 0
+    for (r <- movie.reviews) {
+      if (r.sentiment != 0) total += 1
+    }
 
+    return total * 10 / movie.reviews.length
   }
 }

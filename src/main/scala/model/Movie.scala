@@ -15,8 +15,7 @@ case class Movie (
                  year: Int,
                  direction: Option[String],
                  actors: Seq[String],
-                 reviews: Seq[Review],
-                 finalScore: Option[Float]
+                 reviews: Seq[Review]
                  )
 
 object Movie{
