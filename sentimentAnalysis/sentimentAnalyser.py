@@ -9,7 +9,7 @@ from kafka import KafkaConsumer, KafkaProducer
 
 
 def get_movie(args):
-    consumer = KafkaConsumer(args.src)
+    consumer = KafkaConsumer(args.src, auto_offset_reset='earliest')
     for msg in consumer:
         yield json.loads(msg.value)
 
