@@ -3,10 +3,12 @@
 import argparse
 import glob
 import pickle
+import os
 import sys
 
-from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.feature_extraction.text import TfidfVectorizer, HashingVectorizer
 from sklearn.svm import LinearSVC
+from sklearn.linear_model import SGDClassifier
 
 
 def load(path, sentiment):
@@ -19,15 +21,22 @@ def load(path, sentiment):
     return x, y
 
 
-def build_clf(x, y):
-    vectorizer = TfidfVectorizer(min_df=5,
-                                 max_df = 0.8,
-                                 sublinear_tf=True,
-                                 use_idf=True)
+def load_all(path):
+    x_pos, y_pos = load(os.path.join(path, 'pos'), 'pos')
+    x_neg, y_neg = load(os.path.join(path, 'neg'), 'neg')
+
+    return x_pos + x_neg, y_pos + y_neg
+
+
+def build_clf(train):
+    x, y = load_all(train)
+
+    vectorizer = HashingVectorizer(stop_words='english')
     vect_x = vectorizer.fit_transform(x)
 
-    clf = LinearSVC()
-    clf.fit(vect_x, y)
+    clf = SGDClassifier()
+    clf.partial_fit(vect_x, y, classes=['pos', 'neg'])
+
     return [vectorizer, clf]
 
 
@@ -38,15 +47,19 @@ def save_clf(clf, path):
 
 def logic(argv):
     parser = argparse.ArgumentParser(description='Pre-train of sentiment analysis')
-    parser.add_argument('--pos', action='store', dest='pos', required=True)
-    parser.add_argument('--neg', action='store', dest='neg', required=True)
+    parser.add_argument('--train', action='store', dest='train', required=True)
+    parser.add_argument('--test', action='store', dest='test', required=True)
     parser.add_argument('--clf', action='store', dest='clf', required=True)
 
     args = parser.parse_args(argv)
-    x_pos, y_pos = load(args.pos, 'pos')
-    x_neg, y_neg = load(args.neg, 'neg')
-    clf = build_clf(x_pos + x_neg, y_pos + y_neg)
-    save_clf(clf, args.clf)
+    vect, clf = build_clf(args.train)
+    save_clf([vect, clf], args.clf)
+
+    x, y = load_all(args.test)
+    x_v = vect.transform(x)
+    y_v = clf.predict(x_v)
+
+    print((y_v == y).sum() / len(y))
 
 
 if __name__ == '__main__':

@@ -40,11 +40,22 @@ def classify_sentiments(args):
         reviews = extract_reviews(movie)
         if len(reviews) == 0:
             continue
-        vect_reviews = vectorizer.transform(reviews)
+
+        # Prediction
+        vect_reviews = vectorizer.fit_transform(reviews)
         sentiments = clf.predict(vect_reviews)
 
         movie = incorporate_sentiments(movie, sentiments)
+
         producer.send(args.dst, json.dumps(movie).encode())
+
+        clf.partial_fit(vect_reviews, extract_scores(movie),
+                        classes=['pos', 'neg'])
+
+
+def extract_scores(movie):
+    scorer = lambda x: 'pos' if x > 5 else 'neg'
+    return [scorer(review['score']) for review in movie['reviews']]
 
 
 def extract_reviews(movie):
