@@ -4,8 +4,6 @@
 
 package model
 
-import play.api.libs.json.Json
-
 case class Movie (
                  budget: Long,
                  gross: Long,
@@ -19,7 +17,4 @@ case class Movie (
                  sentimentScore: Option[Float]
                  )
 
-object Movie{
-  implicit val movieFormat = Json.format[Movie]
-}
 

@@ -1,6 +1,7 @@
 ADDR	=	"localhost:9092"
+
 T_RAW	= 	"raw"
-T_SENT	= 	"sent"
+T_SAVE  = 	"save"
 
 all: fetch processing
 
@@ -15,7 +16,7 @@ zookeeper-stop:
 	zkserver stop
 
 fetch:
-	./dataFetching/imdbFetcher.py --max ${MAX} --kafka ${ADDR} --topic ${T_RAW} --verbose
+	./dataFetching/imdbFetcher.py --kafka ${ADDR} --topic ${T_RAW} --verbose
 
 processing:
-	cd sentimentAnalysis && sbt "run ${ADDR} ${T_RAW}"
+	cd sentimentAnalysis && sbt "run ${ADDR} ${T_RAW} ${T_SAVE}"

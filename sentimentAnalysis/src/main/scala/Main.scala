@@ -13,17 +13,20 @@ import play.api.libs.json.Json
 
 object Main {
 
+  implicit val reviewFormat = Json.format[Review]
   implicit val movieFormat = Json.format[Movie]
+
 
   def main(args: Array[String]) {
 
     if (args.length < 3) {
-      System.err.println("Please specify the following arguments: <brokers_list>  <topics_list> <hdfs_path>")
+      System.err.println("Please specify the following arguments: <brokers_list>  <fetch_topic> <save_topic>")
       System.exit(1)
     }
 
 
-    val Array(brokers, topic, hdfsPath) = args
+    val Array(brokers, topicFetch, topicSave) = args
+    val topicSentiment = "sentiment"
 
     val sc = new SparkConf().setAppName("MoviesPopularity").setMaster("local[2]")
     val ssc = new StreamingContext(sc, Seconds(2))
@@ -31,36 +34,45 @@ object Main {
 
     val pyCmd = getPythonCmd()
 
-    val sentimentTopic = "sentiment"
-
-    val streamRaw = setUpStream(brokers, topic, ssc)
+    val streamRaw = setUpStream(brokers, topicFetch, ssc)
     streamRaw
       .map(_._2)
       .foreachRDD(rdd => {
         rdd.pipe(pyCmd).foreach(movie => {
-          val producer = new Producer("sentiment", brokers)
-          producer.send(movie)
-          producer.flush()
-          producer.close()
+          sendTo(topicSentiment, brokers, movie)
+          sendTo(topicSave, brokers, movie)
         })
       })
 
 
-    val streamSent = setUpStream(brokers, sentimentTopic, ssc)
+    val streamSent = setUpStream(brokers, topicSentiment, ssc)
     streamSent
       .map(_._2)
       .map(Json.parse(_).as[Movie])
-      .foreachRDD(rdd => rdd.foreach(println))
-     // .saveAsTextFiles(hdfsPath, "txt")
+      .map(movie => movie.copy(sentimentScore = Some(calculateFinalScore(movie))))
+
+
+      /*.foreachRDD(rdd => rdd.foreach(movie => {
+        sendTo()
+      }))*/
+
 
     ssc.start()
     ssc.awaitTermination()
   }
 
 
+  def sendTo(topic: String, brokers: String, value: String): Unit = {
+    val producer = new Producer(topic, brokers)
+    producer.send(value)
+    producer.flush()
+    producer.close()
+  }
+
+
   def getPythonCmd(): String = {
     val cmdClf = " --clf " + "analyser/classifier.pkl"
-    return "python3 " + SparkFiles.get("sentimentAnalyser.py") + cmdClf
+    "python3 " + SparkFiles.get("sentimentAnalyser.py") + cmdClf
 
   }
 
@@ -79,12 +91,8 @@ object Main {
 
 
   def calculateFinalScore(movie: Movie): Float = {
-    var total = 0
-    for (r <- movie.reviews) {
-      if (r.sentiment != 0) total += 1
-    }
-
-    return total * 10 / movie.reviews.length
+    val total = movie.reviews.foldRight(0)((review, counter) => counter + review.sentiment)
+    total * 10 / movie.reviews.length
   }
 
 }
