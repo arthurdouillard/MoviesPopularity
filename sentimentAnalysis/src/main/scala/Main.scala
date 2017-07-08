@@ -50,17 +50,43 @@ object Main {
       .map(_._2)
       .map(Json.parse(_).as[Movie])
       .map(movie => movie.copy(sentimentScore = Some(calculateFinalScore(movie))))
+      .foreachRDD(rdd => rdd.foreach(println))
 
+    /*
+      .foreachRDD(rdd => rdd.foreach(movie => {
+        sendTo("genre", brokers, Json.toJson(movie).toString())
+      }))
+*/
 
-      /*.foreachRDD(rdd => rdd.foreach(movie => {
-        sendTo()
-      }))*/
+  /*
+    val streamGenre = setUpStream(brokers, "genre", ssc)
+    val tot = streamGenre.updateStateByKey[Float]((v: Seq[String], c: Option[Float]) => {
+      val t = v.head
+      val j = Json.parse(t).as[Movie]
+      val prev : Float = c.getOrElse(0)
+      val score = j.score
+      val current = prev + score
 
+      Some(current)
+    })
 
+    tot.map(a => println(a._1, a._2))
+*/
+      /*
+      .map(_._2)
+      .map(Json.parse(_).as[Movie])
+      .updateStateByKey[Map[String, Float]]()
+*/
     ssc.start()
     ssc.awaitTermination()
   }
 
+
+  def update(i: Int, count: Option[Int]) = {
+    val prev = count.getOrElse(0)
+    val current = prev + i
+    Some(current)
+  }
 
   def sendTo(topic: String, brokers: String, value: String): Unit = {
     val producer = new Producer(topic, brokers)
