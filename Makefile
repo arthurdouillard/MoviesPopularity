@@ -2,6 +2,7 @@ ADDR	=	"localhost:9092"
 
 T_RAW	= 	"raw"
 T_SAVE  = 	"save"
+SAVE_PATH= "file:///tmp/save"
 
 all: fetch processing
 
@@ -20,3 +21,6 @@ fetch:
 
 processing:
 	cd sentimentAnalysis && sbt "run ${ADDR} ${T_RAW} ${T_SAVE}"
+
+save:
+	cd dataSaver && sbt "run ${ADDR} ${T_SAVE} ${SAVE_PATH}"

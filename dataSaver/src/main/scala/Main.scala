@@ -1,6 +1,6 @@
 package main.scala
 
-import org.apache.spark.SparkContext
+import org.apache.spark.{SparkConf, SparkContext}
 import org.apache.spark.streaming.kafka.KafkaUtils
 import org.apache.spark.streaming.{Seconds, StreamingContext}
 import kafka.serializer.StringDecoder
@@ -17,7 +17,7 @@ object Main {
     }
 
     val Array(brokers, topic, hdfsPath) = args
-    val sc = SparkContext.getOrCreate()
+    val sc = new SparkConf().setAppName("MovieSaver").setMaster("local[*]")
     val ssc = StreamingContext.getActiveOrCreate(() => new StreamingContext(sc, Seconds(2)))
 
     val stream = setUpStream(brokers, topic, ssc)
