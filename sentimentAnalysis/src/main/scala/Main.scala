@@ -27,7 +27,7 @@ object Main {
 
     val sc = new SparkConf().setAppName("MoviesPopularity").setMaster("local[2]")
     val ssc = new StreamingContext(sc, Seconds(2))
-    ssc.sparkContext.addFile("sentimentAnalysis/sentimentAnalyser.py")
+    ssc.sparkContext.addFile("analyser/sentimentAnalyser.py")
 
     val pyCmd = getPythonCmd()
 
@@ -50,9 +50,8 @@ object Main {
     streamSent
       .map(_._2)
       .map(Json.parse(_).as[Movie])
-      .map(movie => (movie, calculateFinalScore(movie)))
-      //.foreachRDD(rdd => rdd.foreach(println))
-      .saveAsTextFiles(hdfsPath, "txt")
+      .foreachRDD(rdd => rdd.foreach(println))
+     // .saveAsTextFiles(hdfsPath, "txt")
 
     ssc.start()
     ssc.awaitTermination()
@@ -60,7 +59,7 @@ object Main {
 
 
   def getPythonCmd(): String = {
-    val cmdClf = " --clf " + "sentimentAnalysis/classifier.pkl"
+    val cmdClf = " --clf " + "analyser/classifier.pkl"
     return "python3 " + SparkFiles.get("sentimentAnalyser.py") + cmdClf
 
   }
