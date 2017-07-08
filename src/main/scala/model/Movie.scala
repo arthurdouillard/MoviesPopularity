@@ -7,8 +7,8 @@ package model
 import play.api.libs.json.Json
 
 case class Movie (
-                 budget: Int,
-                 gross: Int,
+                 budget: Long,
+                 gross: Long,
                  title: String,
                  genres: Seq[String],
                  score: Float,

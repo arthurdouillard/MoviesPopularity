@@ -36,7 +36,7 @@ object Main {
     stream.map(_._2)
           .map(Json.parse(_).as[Movie])
           .map(x => (x, calculateFinalScore(x)))
-          .foreachRDD(rdd => rdd.coalesce(1).saveAsTextFile(hdfsPath) )
+          .saveAsTextFiles(hdfsPath, "txt")
 
     ssc.start()
     ssc.awaitTermination()

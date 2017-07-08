@@ -29,3 +29,9 @@ The goal of this project is to use Apache Spark to analyze data about movies.
 ```shell
 > sbt "run {brokers_list} {topics_list} {hdfs_path}" 
 ```
+
+example:
+
+```shell
+> sbt "run localhost:9092 sent file:///Users/tmp/save
+```
