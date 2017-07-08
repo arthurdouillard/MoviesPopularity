@@ -1,0 +1,89 @@
+{
+  "metadata" : {
+    "name" : "Visualization",
+    "user_save_timestamp" : "1970-01-01T01:00:00.000Z",
+    "auto_save_timestamp" : "1970-01-01T01:00:00.000Z",
+    "language_info" : {
+      "name" : "scala",
+      "file_extension" : "scala",
+      "codemirror_mode" : "text/x-scala"
+    },
+    "trusted" : true,
+    "customLocalRepo" : null,
+    "customRepos" : null,
+    "customDeps" : [ "org.apache.kafka %% kafka % 0.8.2.1", "org.apache.kafka % kafka-clients % 0.11.0.0", "org.apache.spark %% spark-core % 2.1.1", "org.apache.spark %% spark-streaming % 2.1.1", "org.apache.spark %% spark-streaming-kafka-0-8 % 2.1.1", "com.typesafe.play %% play-json % 2.4.0" ],
+    "customImports" : null,
+    "customArgs" : null,
+    "customSparkConf" : null
+  },
+  "cells" : [ {
+    "metadata" : {
+      "trusted" : true,
+      "input_collapsed" : false,
+      "collapsed" : false,
+      "id" : "002FD47C8387498C8898D38143240A59"
+    },
+    "cell_type" : "code",
+    "source" : "import org.apache.spark.SparkConf\nimport org.apache.spark.streaming.kafka.KafkaUtils\nimport org.apache.spark.streaming.{Seconds, StreamingContext}\nimport kafka.serializer.StringDecoder\nimport play.api.libs.json.Json",
+    "outputs" : [ {
+      "name" : "stdout",
+      "output_type" : "stream",
+      "text" : "import org.apache.spark.SparkConf\nimport org.apache.spark.streaming.kafka.KafkaUtils\nimport org.apache.spark.streaming.{Seconds, StreamingContext}\nimport kafka.serializer.StringDecoder\nimport play.api.libs.json.Json\n"
+    }, {
+      "metadata" : { },
+      "data" : {
+        "text/html" : ""
+      },
+      "output_type" : "execute_result",
+      "execution_count" : 1,
+      "time" : "Took: 1 second 686 milliseconds, at 2017-7-7 10:49"
+    } ]
+  }, {
+    "metadata" : {
+      "trusted" : true,
+      "input_collapsed" : false,
+      "collapsed" : false,
+      "id" : "C21023AFFE0742FE86B341B55DD91620"
+    },
+    "cell_type" : "code",
+    "source" : "case class Review (\n                  title: String,\n                  score: Float,\n                  content: String,\n                  sentiment: Int\n                  )\n\nobject Review {\n  implicit val reviewFormat = play.api.libs.json.Json.format[Review]\n}\n\ncase class Movie (\n                 budget: Long,\n                 gross: Long,\n                 title: String,\n                 genres: Seq[String],\n                 score: Float,\n                 year: Int,\n                 direction: Option[String],\n                 actors: Seq[String],\n                 reviews: Seq[Review]\n                 )\n\nobject Movie{\n  implicit val movieFormat = play.api.libs.json.Json.format[Movie]\n}",
+    "outputs" : [ {
+      "name" : "stdout",
+      "output_type" : "stream",
+      "text" : "defined class Review\ndefined object Review\ndefined class Movie\ndefined object Movie\n"
+    }, {
+      "metadata" : { },
+      "data" : {
+        "text/html" : ""
+      },
+      "output_type" : "execute_result",
+      "execution_count" : 2,
+      "time" : "Took: 3 seconds 582 milliseconds, at 2017-7-7 10:54"
+    } ]
+  }, {
+    "metadata" : {
+      "trusted" : true,
+      "input_collapsed" : false,
+      "collapsed" : false,
+      "id" : "3E67AA5A8C664319883A11CA7E2C62B2"
+    },
+    "cell_type" : "code",
+    "source" : "val brokers = \"localhost:9092\"\nval topics = \"sent\"\n\nval ssc = StreamingContext.getActiveOrCreate(() => new StreamingContext(sc, Seconds(2)))\n\nval topicsSet = topics.split(\",\").toSet\nval kafkaParams = Map[String, String](\"bootstrap.servers\" -> brokers)\nval stream = KafkaUtils.createDirectStream[String, String, StringDecoder, StringDecoder](\n      ssc, kafkaParams, topicsSet)tc\n\nstream.map(_._2)\n  .map(Json.parse(_).as[Movie])\n  .map(x => x.title)\n  .print()\n\nssc.start()\nssc.awaitTermination()",
+    "outputs" : [ {
+      "name" : "stdout",
+      "output_type" : "stream",
+      "text" : "-------------------------------------------\nTime: 1499416700000 ms\n-------------------------------------------\nJohn Carter (2012)\n\n-------------------------------------------\nTime: 1499416702000 ms\n-------------------------------------------\n\n-------------------------------------------\nTime: 1499416704000 ms\n-------------------------------------------\nRaiponce (2010)\n\n-------------------------------------------\nTime: 1499416706000 ms\n-------------------------------------------\nSpider-Man 3 (2007)\n\n-------------------------------------------\nTime: 1499416708000 ms\n-------------------------------------------\n\n-------------------------------------------\nTime: 1499416710000 ms\n-------------------------------------------\nAvengers: L'ère d'Ultron (2015)\n\n-------------------------------------------\nTime: 1499416712000 ms\n-------------------------------------------\n\n-------------------------------------------\nTime: 1499416714000 ms\n-------------------------------------------\nCaptain America: Civil War (2016)\n\n-------------------------------------------\nTime: 1499416716000 ms\n-------------------------------------------\nBatman v Superman: L'aube de la justice (2016)\n\n-------------------------------------------\nTime: 1499416718000 ms\n-------------------------------------------\nLe Hobbit: Un voyage inattendu (2012)\n\n-------------------------------------------\nTime: 1499416720000 ms\n-------------------------------------------\n\n-------------------------------------------\nTime: 1499416722000 ms\n-------------------------------------------\nHarry Potter et le prince de sang-mêlé (2009)\n\n-------------------------------------------\nTime: 1499416724000 ms\n-------------------------------------------\nLe Hobbit: La désolation de Smaug (2013)\n\n-------------------------------------------\nTime: 1499416726000 ms\n-------------------------------------------\nLe Hobbit: La bataille des cinq armées (2014)\n\n-------------------------------------------\nTime: 1499416728000 ms\n-------------------------------------------\nPirates des Caraïbes: La fontaine de jouvence (2011)\n\n-------------------------------------------\nTime: 1499416730000 ms\n-------------------------------------------\nFast & Furious 8 (2017)\n\n-------------------------------------------\nTime: 1499416732000 ms\n-------------------------------------------\n\n-------------------------------------------\nTime: 1499416734000 ms\n-------------------------------------------\nSuperman Returns (2006)\n\n-------------------------------------------\nTime: 1499416736000 ms\n-------------------------------------------\nQuantum of Solace (2008)\n\n-------------------------------------------\nTime: 1499416738000 ms\n-------------------------------------------\n\n-------------------------------------------\nTime: 1499416740000 ms\n-------------------------------------------\nPirates des Caraïbes - La vengeance de Salazar (2017)\n\n-------------------------------------------\nTime: 1499416742000 ms\n-------------------------------------------\nAvengers (2012)\n\n-------------------------------------------\nTime: 1499416744000 ms\n-------------------------------------------\nPirates des Caraïbes - Le secret du coffre maudit (2006)\n\n-------------------------------------------\nTime: 1499416746000 ms\n-------------------------------------------\n\n-------------------------------------------\nTime: 1499416748000 ms\n-------------------------------------------\nMan of Steel (2013)\n\n-------------------------------------------\nTime: 1499416750000 ms\n-------------------------------------------\nLe monde de Narnia: chapitre 2 - Le prince Caspian (2008)\n\n-------------------------------------------\nTime: 1499416752000 ms\n-------------------------------------------\nThe Amazing Spider-Man (2012)\n\n-------------------------------------------\nTime: 1499416754000 ms\n-------------------------------------------\n\n-------------------------------------------\nTime: 1499416756000 ms\n-------------------------------------------\nTransformers: The Last Knight (2017)\n\n-------------------------------------------\nTime: 1499416758000 ms\n-------------------------------------------\nJurassic World (2015)\n\n-------------------------------------------\nTime: 1499416760000 ms\n-------------------------------------------\nMen in Black 3 (2012)\n\n-------------------------------------------\nTime: 1499416762000 ms\n-------------------------------------------\nTransformers - La revanche (2009)\n\n-------------------------------------------\nTime: 1499416764000 ms\n-------------------------------------------\n\n-------------------------------------------\nTime: 1499416766000 ms\n-------------------------------------------\nTransformers: L'âge de l'extinction (2014)\n\n-------------------------------------------\nTime: 1499416768000 ms\n-------------------------------------------\nX-Men: L'affrontement final (2006)\n\n-------------------------------------------\nTime: 1499416770000 ms\n-------------------------------------------\n\n-------------------------------------------\nTime: 1499416772000 ms\n-------------------------------------------\n\n-------------------------------------------\nTime: 1499416774000 ms\n-------------------------------------------\n\n-------------------------------------------\nTime: 1499416776000 ms\n-------------------------------------------\nBattleship (2012)\n\n-------------------------------------------\nTime: 1499416778000 ms\n-------------------------------------------\nKing Kong (2005)\n\n-------------------------------------------\nTime: 1499416780000 ms\n-------------------------------------------\nÀ la croisée des mondes: La boussole d'or (2007)\n\n-------------------------------------------\nTime: 1499416782000 ms\n-------------------------------------------\n\n-------------------------------------------\nTime: 1499416784000 ms\n-------------------------------------------\nTitanic (1997)\n\n-------------------------------------------\nTime: 1499416786000 ms\n-------------------------------------------\nRogue One: A Star Wars story (2016)\n\n-------------------------------------------\nTime: 1499416788000 ms\n-------------------------------------------\n\n-------------------------------------------\nTime: 1499416790000 ms\n-------------------------------------------\nLe monde de Dory (2016)\n\n-------------------------------------------\nTime: 1499416792000 ms\n-------------------------------------------\nToy Story 3 (2010)\n\n-------------------------------------------\nTime: 1499416794000 ms\n-------------------------------------------\n\n-------------------------------------------\nTime: 1499416796000 ms\n-------------------------------------------\nIron Man 3 (2013)\n\n-------------------------------------------\nTime: 1499416798000 ms\n-------------------------------------------\n\n-------------------------------------------\nTime: 1499416800000 ms\n-------------------------------------------\n\n-------------------------------------------\nTime: 1499416802000 ms\n-------------------------------------------\nSpider-Man 2 (2004)\n\n"
+    } ]
+  }, {
+    "metadata" : {
+      "trusted" : true,
+      "input_collapsed" : false,
+      "collapsed" : true,
+      "id" : "BEDB5F3F83E64A84B53AC4D978A06239"
+    },
+    "cell_type" : "code",
+    "source" : "",
+    "outputs" : [ ]
+  } ],
+  "nbformat" : 4
+}
