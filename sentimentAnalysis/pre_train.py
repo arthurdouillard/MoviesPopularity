@@ -6,9 +6,8 @@ import pickle
 import os
 import sys
 
-from sklearn.feature_extraction.text import TfidfVectorizer, HashingVectorizer
+from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.svm import LinearSVC
-from sklearn.linear_model import SGDClassifier
 
 
 def load(path, sentiment):
@@ -31,11 +30,11 @@ def load_all(path):
 def build_clf(train):
     x, y = load_all(train)
 
-    vectorizer = HashingVectorizer(stop_words='english')
+    vectorizer = TfidfVectorizer(stop_words='english')
     vect_x = vectorizer.fit_transform(x)
 
-    clf = SGDClassifier()
-    clf.partial_fit(vect_x, y, classes=['pos', 'neg'])
+    clf = LinearSVC()
+    clf.fit(vect_x, y)
 
     return [vectorizer, clf]
 
