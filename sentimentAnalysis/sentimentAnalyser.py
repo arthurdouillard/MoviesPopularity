@@ -5,13 +5,17 @@ import json
 import pickle
 import sys
 
-from kafka import KafkaConsumer, KafkaProducer
+from kafka import KafkaProducer
 
 
-def get_movie(args):
-    consumer = KafkaConsumer(args.src, auto_offset_reset='earliest')
-    for msg in consumer:
-        yield json.loads(msg.value)
+def get_movies():
+    input_data = sys.stdin.read()
+    blop_json = json.loads(input_data)
+
+    if type(blop_json) == list:
+        return blop_json
+    else:
+        return [blop_json]
 
 
 def load_clf(path):
@@ -28,34 +32,19 @@ def incorporate_sentiments(movie, sentiments):
 
 
 def classify_sentiments(args):
-    producer = KafkaProducer(bootstrap_servers=args.kafka)
+    producer = KafkaProducer(bootstrap_servers=args.brokers)
     vectorizer, clf = load_clf(args.clf)
-    spaces = ' ' * 80
 
-    for movie in get_movie(args):
-        if args.verbose:
-            print('{}\r'.format(spaces), end='')
-            print('{}\r'.format(movie['title'].strip()), end='')
-
+    for movie in get_movies():
         reviews = extract_reviews(movie)
         if len(reviews) == 0:
             continue
 
-        # Prediction
-        vect_reviews = vectorizer.fit_transform(reviews)
+        vect_reviews = vectorizer.transform(reviews)
         sentiments = clf.predict(vect_reviews)
 
         movie = incorporate_sentiments(movie, sentiments)
-
-        producer.send(args.dst, json.dumps(movie).encode())
-
-        clf.partial_fit(vect_reviews, extract_scores(movie),
-                        classes=['pos', 'neg'])
-
-
-def extract_scores(movie):
-    scorer = lambda x: 'pos' if x > 5 else 'neg'
-    return [scorer(review['score']) for review in movie['reviews']]
+        producer.send(args.topic, json.dumps(movie).encode())
 
 
 def extract_reviews(movie):
@@ -64,15 +53,12 @@ def extract_reviews(movie):
 
 def logic(argv):
     parser = argparse.ArgumentParser(description='Sentiment Analyser')
-    parser.add_argument('--src', action='store', dest='src',
+    parser.add_argument('--topic', action='store', dest='topic',
                         required=True)
-    parser.add_argument('--dst', action='store', dest='dst',
-                        required=True)
-    parser.add_argument('--kafka', action='store', dest='kafka',
+    parser.add_argument('--brokers', action='store', dest='brokers',
                         required=True)
     parser.add_argument('--clf', action='store', dest='clf',
                         required=True)
-    parser.add_argument('--verbose', action='store_true', dest='verbose')
 
     args = parser.parse_args(argv)
     classify_sentiments(args)
