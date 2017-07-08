@@ -27,5 +27,5 @@ The goal of this project is to use Apache Spark to analyze data about movies.
 ### Process ML data
 
 ```shell
-> sbt "run {brokers_list} {topics_list"}
+> sbt "run {brokers_list} {topics_list} {hdfs_path}" 
 ```

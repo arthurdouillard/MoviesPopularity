@@ -4,8 +4,9 @@ import org.apache.spark.SparkConf
 import org.apache.spark.streaming.kafka.KafkaUtils
 import org.apache.spark.streaming.{Seconds, StreamingContext}
 import kafka.serializer.StringDecoder
-import model.{Movie, Review}
+import model.Movie
 import play.api.libs.json.Json
+
 
 /**
   * @author douill_a
@@ -17,13 +18,14 @@ object Main {
 
   def main(args: Array[String]) {
 
-    if (args.length < 2) {
-      System.err.println("Please specify the following arguments: <brokers_list> and <topics_list>")
+    if (args.length < 3) {
+      System.err.println("Please specify the following arguments: <brokers_list>  <topics_list> <hdfs_path>")
       System.exit(1)
     }
 
-    val Array(brokers, topics) = args
-    val sc = new SparkConf().setAppName("MoviesPopularity").setMaster("local[*]")
+    val Array(brokers, topics, hdfsPath) = args
+
+    val sc = new SparkConf().setAppName("MoviesPopularity").setMaster("local[4]")
     val ssc = new StreamingContext(sc, Seconds(2))
 
     val topicsSet = topics.split(",").toSet
@@ -34,7 +36,7 @@ object Main {
     stream.map(_._2)
           .map(Json.parse(_).as[Movie])
           .map(x => (x, calculateFinalScore(x)))
-          .print()
+          .foreachRDD(rdd => rdd.coalesce(1).saveAsTextFile(hdfsPath) )
 
     ssc.start()
     ssc.awaitTermination()
@@ -48,4 +50,5 @@ object Main {
 
     return total * 10 / movie.reviews.length
   }
+
 }
