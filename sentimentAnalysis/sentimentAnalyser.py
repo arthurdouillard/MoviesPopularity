@@ -5,12 +5,12 @@ import json
 import pickle
 import sys
 
-from kafka import KafkaProducer
-
-
 def get_movies():
     input_data = sys.stdin.read()
-    blop_json = json.loads(input_data)
+    try:
+        blop_json = json.loads(input_data)
+    except:
+        sys.exit(0)
 
     if type(blop_json) == list:
         return blop_json
@@ -32,7 +32,6 @@ def incorporate_sentiments(movie, sentiments):
 
 
 def classify_sentiments(args):
-    producer = KafkaProducer(bootstrap_servers=args.brokers)
     vectorizer, clf = load_clf(args.clf)
 
     for movie in get_movies():
@@ -44,8 +43,7 @@ def classify_sentiments(args):
         sentiments = clf.predict(vect_reviews)
 
         movie = incorporate_sentiments(movie, sentiments)
-        producer.send(args.topic, json.dumps(movie).encode())
-
+        print(json.dumps(movie))
 
 def extract_reviews(movie):
     return [review['content'] for review in movie['reviews']]
@@ -53,10 +51,6 @@ def extract_reviews(movie):
 
 def logic(argv):
     parser = argparse.ArgumentParser(description='Sentiment Analyser')
-    parser.add_argument('--topic', action='store', dest='topic',
-                        required=True)
-    parser.add_argument('--brokers', action='store', dest='brokers',
-                        required=True)
     parser.add_argument('--clf', action='store', dest='clf',
                         required=True)
 

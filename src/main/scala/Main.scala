@@ -5,6 +5,7 @@ import org.apache.spark.streaming.kafka.KafkaUtils
 import org.apache.spark.streaming.{Seconds, StreamingContext}
 import kafka.serializer.StringDecoder
 import model.{Movie, Review}
+import org.apache.kafka.clients.producer.ProducerRecord
 import org.apache.spark.rdd.RDD
 import org.apache.spark.streaming.dstream.InputDStream
 import play.api.libs.json.Json
@@ -23,34 +24,45 @@ object Main {
 
 
     val Array(brokers, topic, hdfsPath) = args
-    val sentTopic = "sentiment"
 
-    val sc = new SparkConf().setAppName("MoviesPopularity").setMaster("local[*]")
+    val sc = new SparkConf().setAppName("MoviesPopularity").setMaster("local[2]")
     val ssc = new StreamingContext(sc, Seconds(2))
-
-    val streamRaw = setUpStream(brokers, topic, ssc)
-
-
     ssc.sparkContext.addFile("sentimentAnalysis/sentimentAnalyser.py")
 
-    streamRaw.map(_._2)
-      .foreachRDD(rdd => analyseSentiment(sentTopic, brokers, rdd))
+    val pyCmd = getPythonCmd()
 
-    val streamSent = setUpStream(brokers, sentTopic, ssc)
-    streamSent.map(_._2)
+    val sentimentTopic = "sentiment"
+
+    val streamRaw = setUpStream(brokers, topic, ssc)
+    streamRaw
+      .map(_._2)
+      .foreachRDD(rdd => {
+        rdd.pipe(pyCmd).foreach(movie => {
+          val producer = new Producer("sentiment", brokers)
+          producer.send(movie)
+          producer.flush()
+          producer.close()
+        })
+      })
+
+
+    val streamSent = setUpStream(brokers, sentimentTopic, ssc)
+    streamSent
+      .map(_._2)
       .map(Json.parse(_).as[Movie])
       .map(movie => (movie, calculateFinalScore(movie)))
+      //.foreachRDD(rdd => rdd.foreach(println))
       .saveAsTextFiles(hdfsPath, "txt")
 
     ssc.start()
     ssc.awaitTermination()
   }
 
-  def analyseSentiment(topic: String, brokers: String, rdd: RDD[String]) = {
-    val cmdTopic = " --topic " + topic
-    val cmdBrokers = " --brokers " + brokers
+
+  def getPythonCmd(): String = {
     val cmdClf = " --clf " + "sentimentAnalysis/classifier.pkl"
-    rdd.pipe("python3 " + SparkFiles.get("sentimentAnalyser.py") + cmdTopic + cmdBrokers + cmdClf)
+    return "python3 " + SparkFiles.get("sentimentAnalyser.py") + cmdClf
+
   }
 
   def setUpStream(brokers: String, topic: String, ssc: StreamingContext): InputDStream[(String, String)] = {
