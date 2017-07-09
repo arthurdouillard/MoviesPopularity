@@ -16,9 +16,19 @@ object Main {
   implicit val reviewFormat = Json.format[Review]
   implicit val movieFormat = Json.format[Movie]
 
+  case class Genre(sum: Float, count: Int) {
+    val avg = (sum / scala.math.max(1, count)).toInt
+
+    def +(sum: Float, count: Int): Genre = Genre (
+      this.sum + sum,
+      this.count + count
+    )
+
+    override def toString = s"Avg: ${avg} for ${count} movies."
+  }
+
 
   def main(args: Array[String]) {
-
     if (args.length < 3) {
       System.err.println("Please specify the following arguments: <brokers_list>  <fetch_topic> <save_topic>")
       System.exit(1)
@@ -49,40 +59,37 @@ object Main {
                               .map(Json.parse(_).as[Movie])
                               .map(movie => movie.copy(sentimentScore = Some(calculateFinalScore(movie))))
 
-    val genreStream = baseStream.map(movie => movie.genres)
-                                .map(genre => (genre, 1))
-                                .updateStateByKey(updateGenres)
-                                .foreachRDD(rdd => rdd.foreach(println))
+    val genreStream = baseStream.flatMap(movie => {
+                                  for (genre <- movie.genres) yield (genre, movie.sentimentScore)
+                                })
+                                .updateStateByKey(update)
+                                .foreachRDD(rdd => {
+                                  if (!rdd.isEmpty()) {
+                                    val genres = createJsonGenres(rdd)
+                                    sendTo("genres", brokers, genres)
+                                  }
+                                })
 
-    /*
-      .foreachRDD(rdd => rdd.foreach(movie => {
-        sendTo("genre", brokers, Json.toJson(movie).toString())
-      }))
-*/
-
-  /*
-    val streamGenre = setUpStream(brokers, "genre", ssc)
-    val tot = streamGenre.updateStateByKey[Float]((v: Seq[String], c: Option[Float]) => {
-      val t = v.head
-      val j = Json.parse(t).as[Movie]
-      val prev : Float = c.getOrElse(0)
-      val score = j.score
-      val current = prev + score
-
-      Some(current)
-    })
-
-    tot.map(a => println(a._1, a._2))
-*/
-      /*
-      .map(_._2)
-      .map(Json.parse(_).as[Movie])
-      .updateStateByKey[Map[String, Float]]()
-*/
     ssc.start()
     ssc.awaitTermination()
+
   }
 
+  def createJsonGenres(rdd: RDD[(String, Genre)]): String = {
+    val genres = rdd
+                  .map(tuple => Map(tuple._1 -> tuple._2.avg))
+                  .collect()
+                  .reduce(_ ++ _)
+
+    Json.toJson(genres).toString()
+  }
+
+  def update(newValues: Seq[Option[Float]], state: Option[Genre]): Option[Genre] = {
+    val prev = state.getOrElse(Genre(0, 0))
+    val values = newValues.flatMap(x => x)
+    val current = prev + (values.sum, values.size)
+    Some(current)
+  }
 
   def updateGenres(newValues: Seq[Int], state: Option[(String, Int)]) : Option[(String, Int)] = {
     val count = newValues.sum
