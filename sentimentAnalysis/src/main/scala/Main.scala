@@ -1,5 +1,6 @@
 package main.scala
 
+import Processor.GenreProcessor
 import org.apache.spark.{SparkConf, SparkFiles}
 import org.apache.spark.streaming.kafka.KafkaUtils
 import org.apache.spark.streaming.{Seconds, StreamingContext}
@@ -15,18 +16,6 @@ object Main {
 
   implicit val reviewFormat = Json.format[Review]
   implicit val movieFormat = Json.format[Movie]
-
-  case class Genre(sum: Float, count: Int) {
-    val avg = (sum / scala.math.max(1, count)).toInt
-
-    def +(sum: Float, count: Int): Genre = Genre (
-      this.sum + sum,
-      this.count + count
-    )
-
-    override def toString = s"Avg: ${avg} for ${count} movies."
-  }
-
 
   def main(args: Array[String]) {
     if (args.length < 3) {
@@ -59,46 +48,11 @@ object Main {
                               .map(Json.parse(_).as[Movie])
                               .map(movie => movie.copy(sentimentScore = Some(calculateFinalScore(movie))))
 
-    val genreStream = baseStream.flatMap(movie => {
-                                  for (genre <- movie.genres) yield (genre, movie.sentimentScore)
-                                })
-                                .updateStateByKey(update)
-                                .foreachRDD(rdd => {
-                                  if (!rdd.isEmpty()) {
-                                    val genres = createJsonGenres(rdd)
-                                    sendTo("genres", brokers, genres)
-                                  }
-                                })
+    new GenreProcessor(brokers, "genre", baseStream).process()
 
     ssc.start()
     ssc.awaitTermination()
 
-  }
-
-  def createJsonGenres(rdd: RDD[(String, Genre)]): String = {
-    val genres = rdd
-                  .map(tuple => Map(tuple._1 -> tuple._2.avg))
-                  .collect()
-                  .reduce(_ ++ _)
-
-    Json.toJson(genres).toString()
-  }
-
-  def update(newValues: Seq[Option[Float]], state: Option[Genre]): Option[Genre] = {
-    val prev = state.getOrElse(Genre(0, 0))
-    val values = newValues.flatMap(x => x)
-    val current = prev + (values.sum, values.size)
-    Some(current)
-  }
-
-  def updateGenres(newValues: Seq[Int], state: Option[(String, Int)]) : Option[(String, Int)] = {
-    val count = newValues.sum
-    val newState = state match {
-      case Some(value) => (value._1, value._2 + count)
-      case None => ("", count)
-    }
-
-     Some(newState)
   }
 
   def sendTo(topic: String, brokers: String, value: String): Unit = {
