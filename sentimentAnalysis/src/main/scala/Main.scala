@@ -9,6 +9,9 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.streaming.dstream.{DStream, InputDStream}
 import play.api.libs.json.Json
 
+import scala.collection.SortedMap
+import scala.collection.immutable.ListMap
+
 
 object Main {
 
@@ -85,12 +88,14 @@ object Main {
     }
 
     def serializeDirector(rdd: RDD[(String, Actor)]): String = {
-      val genres = rdd
+      val actors = rdd
         .map(tuple => Map(tuple._1 -> tuple._2.avg))
         .collect()
         .reduce(_ ++ _)
 
-      Json.stringify(Json.toJson(genres))
+      val toSerialize = ListMap(actors.toSeq.sortWith(_._2 > _._2):_*).take(10)
+
+      Json.stringify(Json.toJson(toSerialize))
     }
 
     def updateDirector(newValues: Seq[Option[Float]], state: Option[Actor]): Option[Actor] = {
@@ -124,12 +129,14 @@ object Main {
     }
 
     def serializeDirector(rdd: RDD[(String, Director)]): String = {
-      val genres = rdd
+      val directors = rdd
         .map(tuple => Map(tuple._1 -> tuple._2.avg))
         .collect()
         .reduce(_ ++ _)
 
-      Json.stringify(Json.toJson(genres))
+      val toSerialize = ListMap(directors.toSeq.sortWith(_._2 > _._2):_*).take(10)
+
+      Json.stringify(Json.toJson(directors))
     }
 
     def updateDirector(newValues: Seq[Option[Float]], state: Option[Director]): Option[Director] = {
