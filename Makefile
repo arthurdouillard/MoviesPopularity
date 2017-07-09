@@ -20,7 +20,7 @@ fetch:
 	./dataFetching/imdbFetcher.py --kafka ${ADDR} --topic ${T_RAW} --verbose
 
 processing:
-	cd sentimentAnalysis && sbt "run ${ADDR} ${T_RAW} ${T_SAVE}"
+	cd sentimentAnalysis && sbt "run ${ADDR} ${T_RAW} ${T_SAVE}" 2>/dev/null
 
 save:
 	cd dataSaver && sbt "run ${ADDR} ${T_SAVE} ${SAVE_PATH}"
