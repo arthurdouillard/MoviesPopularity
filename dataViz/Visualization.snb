@@ -18,26 +18,46 @@
   },
   "cells" : [ {
     "metadata" : {
+      "id" : "2E7CD7525BC2411DADB4CB2177AFB396"
+    },
+    "cell_type" : "markdown",
+    "source" : "# Scala Project: MoviesPopularity"
+  }, {
+    "metadata" : {
       "trusted" : true,
       "input_collapsed" : false,
       "collapsed" : false,
       "id" : "002FD47C8387498C8898D38143240A59"
     },
     "cell_type" : "code",
-    "source" : "import org.apache.spark.SparkConf\nimport org.apache.spark.streaming.kafka.KafkaUtils\nimport org.apache.spark.streaming.{Seconds, StreamingContext}\nimport kafka.serializer.StringDecoder\nimport play.api.libs.json.Json",
+    "source" : "import org.apache.spark.SparkConf\nimport org.apache.spark.streaming.kafka.KafkaUtils\nimport org.apache.spark.streaming.{Seconds, StreamingContext}\nimport org.apache.spark.streaming.dstream.InputDStream\nimport kafka.serializer.StringDecoder\nimport play.api.libs.json.Json\nimport notebook.front.widgets.charts",
     "outputs" : [ {
+      "metadata" : { },
+      "data" : {
+        "text/html" : ""
+      },
+      "output_type" : "execute_result",
+      "execution_count" : 2,
+      "time" : "Took: 1 second 731 milliseconds, at 2017-7-9 22:45"
+    }, {
       "name" : "stdout",
       "output_type" : "stream",
-      "text" : "import org.apache.spark.SparkConf\nimport org.apache.spark.streaming.kafka.KafkaUtils\nimport org.apache.spark.streaming.{Seconds, StreamingContext}\nimport kafka.serializer.StringDecoder\nimport play.api.libs.json.Json\n"
+      "text" : "import org.apache.spark.SparkConf\nimport org.apache.spark.streaming.kafka.KafkaUtils\nimport org.apache.spark.streaming.{Seconds, StreamingContext}\nimport org.apache.spark.streaming.dstream.InputDStream\nimport kafka.serializer.StringDecoder\nimport play.api.libs.json.Json\nimport notebook.front.widgets.charts\n"
     }, {
       "metadata" : { },
       "data" : {
         "text/html" : ""
       },
       "output_type" : "execute_result",
-      "execution_count" : 1,
-      "time" : "Took: 1 second 686 milliseconds, at 2017-7-7 10:49"
+      "execution_count" : 3,
+      "time" : "Took: 1 second 512 milliseconds, at 2017-7-9 22:45"
     } ]
+  }, {
+    "metadata" : {
+      "id" : "D324BFCEE31E4F89B782C8EE73C1ACB4"
+    },
+    "cell_type" : "markdown",
+    "source" : "## Case classes"
   }, {
     "metadata" : {
       "trusted" : true,
@@ -46,7 +66,7 @@
       "id" : "C21023AFFE0742FE86B341B55DD91620"
     },
     "cell_type" : "code",
-    "source" : "case class Review (\n                  title: String,\n                  score: Float,\n                  content: String,\n                  sentiment: Int\n                  )\n\nobject Review {\n  implicit val reviewFormat = play.api.libs.json.Json.format[Review]\n}\n\ncase class Movie (\n                 budget: Long,\n                 gross: Long,\n                 title: String,\n                 genres: Seq[String],\n                 score: Float,\n                 year: Int,\n                 direction: Option[String],\n                 actors: Seq[String],\n                 reviews: Seq[Review]\n                 )\n\nobject Movie{\n  implicit val movieFormat = play.api.libs.json.Json.format[Movie]\n}",
+    "source" : "\ncase class Review (\n                  title: String,\n                  score: Float,\n                  content: String,\n                  sentiment: Int\n                  )\n\nobject Review {\n  implicit val reviewFormat = play.api.libs.json.Json.format[Review]\n}\n\ncase class Movie (\n                 budget: Long,\n                 gross: Long,\n                 title: String,\n                 genres: Seq[String],\n                 score: Float,\n                 year: Int,\n                 direction: Option[String],\n                 actors: Seq[String],\n                 reviews: Seq[Review],\n                 sentimentScore: Option[Float]\n                 )\n\nobject Movie{\n  implicit val movieFormat = play.api.libs.json.Json.format[Movie]\n}",
     "outputs" : [ {
       "name" : "stdout",
       "output_type" : "stream",
@@ -57,8 +77,30 @@
         "text/html" : ""
       },
       "output_type" : "execute_result",
-      "execution_count" : 2,
-      "time" : "Took: 3 seconds 582 milliseconds, at 2017-7-7 10:54"
+      "execution_count" : 4,
+      "time" : "Took: 3 seconds 667 milliseconds, at 2017-7-9 22:47"
+    } ]
+  }, {
+    "metadata" : {
+      "trusted" : true,
+      "input_collapsed" : false,
+      "collapsed" : false,
+      "id" : "2161D1E33D074F6C88DD32A6EBBED5E5"
+    },
+    "cell_type" : "code",
+    "source" : "\n  def setUpStream(brokers: String, topic: String, ssc: StreamingContext): InputDStream[(String, String)] = {\n\n    val kafkaParams = Map[String, String](\"bootstrap.servers\" -> brokers)\n\n    KafkaUtils.createDirectStream[String, String, StringDecoder, StringDecoder](\n        ssc,\n        kafkaParams,\n        Set(topic)\n    )\n  }",
+    "outputs" : [ {
+      "name" : "stdout",
+      "output_type" : "stream",
+      "text" : "setUpStream: (brokers: String, topic: String, ssc: org.apache.spark.streaming.StreamingContext)org.apache.spark.streaming.dstream.InputDStream[(String, String)]\n"
+    }, {
+      "metadata" : { },
+      "data" : {
+        "text/html" : ""
+      },
+      "output_type" : "execute_result",
+      "execution_count" : 6,
+      "time" : "Took: 2 seconds 297 milliseconds, at 2017-7-9 22:47"
     } ]
   }, {
     "metadata" : {
@@ -68,11 +110,19 @@
       "id" : "3E67AA5A8C664319883A11CA7E2C62B2"
     },
     "cell_type" : "code",
-    "source" : "val brokers = \"localhost:9092\"\nval topics = \"sent\"\n\nval ssc = StreamingContext.getActiveOrCreate(() => new StreamingContext(sc, Seconds(2)))\n\nval topicsSet = topics.split(\",\").toSet\nval kafkaParams = Map[String, String](\"bootstrap.servers\" -> brokers)\nval stream = KafkaUtils.createDirectStream[String, String, StringDecoder, StringDecoder](\n      ssc, kafkaParams, topicsSet)tc\n\nstream.map(_._2)\n  .map(Json.parse(_).as[Movie])\n  .map(x => x.title)\n  .print()\n\nssc.start()\nssc.awaitTermination()",
+    "source" : "val brokers = \"localhost:9092\"\nval topics = \"genre\"\n\nval ssc = StreamingContext.getActiveOrCreate(() => new StreamingContext(sc, Seconds(2)))\n\nval topicsSet = topics.split(\",\").toSet\nval kafkaParams = Map[String, String](\"bootstrap.servers\" -> brokers)\nval genreStream = setUpStream(brokers, topics, ssc)\n\nval bs  = BarChart(List((\"\", 0)), maxPoints =200, sizes=(200, 200))\nval genreValues = genreStream.map(_._2)\n                            .map(Json.parse(_).as[Map[String, Int]])\n                            .flatMap(_.toList)\n                            .foreachRDD { rdd => bs.applyOn(rdd.collect().toList) }\n                          \n\nssc.start()\nbs",
     "outputs" : [ {
       "name" : "stdout",
       "output_type" : "stream",
-      "text" : "-------------------------------------------\nTime: 1499416700000 ms\n-------------------------------------------\nJohn Carter (2012)\n\n-------------------------------------------\nTime: 1499416702000 ms\n-------------------------------------------\n\n-------------------------------------------\nTime: 1499416704000 ms\n-------------------------------------------\nRaiponce (2010)\n\n-------------------------------------------\nTime: 1499416706000 ms\n-------------------------------------------\nSpider-Man 3 (2007)\n\n-------------------------------------------\nTime: 1499416708000 ms\n-------------------------------------------\n\n-------------------------------------------\nTime: 1499416710000 ms\n-------------------------------------------\nAvengers: L'ère d'Ultron (2015)\n\n-------------------------------------------\nTime: 1499416712000 ms\n-------------------------------------------\n\n-------------------------------------------\nTime: 1499416714000 ms\n-------------------------------------------\nCaptain America: Civil War (2016)\n\n-------------------------------------------\nTime: 1499416716000 ms\n-------------------------------------------\nBatman v Superman: L'aube de la justice (2016)\n\n-------------------------------------------\nTime: 1499416718000 ms\n-------------------------------------------\nLe Hobbit: Un voyage inattendu (2012)\n\n-------------------------------------------\nTime: 1499416720000 ms\n-------------------------------------------\n\n-------------------------------------------\nTime: 1499416722000 ms\n-------------------------------------------\nHarry Potter et le prince de sang-mêlé (2009)\n\n-------------------------------------------\nTime: 1499416724000 ms\n-------------------------------------------\nLe Hobbit: La désolation de Smaug (2013)\n\n-------------------------------------------\nTime: 1499416726000 ms\n-------------------------------------------\nLe Hobbit: La bataille des cinq armées (2014)\n\n-------------------------------------------\nTime: 1499416728000 ms\n-------------------------------------------\nPirates des Caraïbes: La fontaine de jouvence (2011)\n\n-------------------------------------------\nTime: 1499416730000 ms\n-------------------------------------------\nFast & Furious 8 (2017)\n\n-------------------------------------------\nTime: 1499416732000 ms\n-------------------------------------------\n\n-------------------------------------------\nTime: 1499416734000 ms\n-------------------------------------------\nSuperman Returns (2006)\n\n-------------------------------------------\nTime: 1499416736000 ms\n-------------------------------------------\nQuantum of Solace (2008)\n\n-------------------------------------------\nTime: 1499416738000 ms\n-------------------------------------------\n\n-------------------------------------------\nTime: 1499416740000 ms\n-------------------------------------------\nPirates des Caraïbes - La vengeance de Salazar (2017)\n\n-------------------------------------------\nTime: 1499416742000 ms\n-------------------------------------------\nAvengers (2012)\n\n-------------------------------------------\nTime: 1499416744000 ms\n-------------------------------------------\nPirates des Caraïbes - Le secret du coffre maudit (2006)\n\n-------------------------------------------\nTime: 1499416746000 ms\n-------------------------------------------\n\n-------------------------------------------\nTime: 1499416748000 ms\n-------------------------------------------\nMan of Steel (2013)\n\n-------------------------------------------\nTime: 1499416750000 ms\n-------------------------------------------\nLe monde de Narnia: chapitre 2 - Le prince Caspian (2008)\n\n-------------------------------------------\nTime: 1499416752000 ms\n-------------------------------------------\nThe Amazing Spider-Man (2012)\n\n-------------------------------------------\nTime: 1499416754000 ms\n-------------------------------------------\n\n-------------------------------------------\nTime: 1499416756000 ms\n-------------------------------------------\nTransformers: The Last Knight (2017)\n\n-------------------------------------------\nTime: 1499416758000 ms\n-------------------------------------------\nJurassic World (2015)\n\n-------------------------------------------\nTime: 1499416760000 ms\n-------------------------------------------\nMen in Black 3 (2012)\n\n-------------------------------------------\nTime: 1499416762000 ms\n-------------------------------------------\nTransformers - La revanche (2009)\n\n-------------------------------------------\nTime: 1499416764000 ms\n-------------------------------------------\n\n-------------------------------------------\nTime: 1499416766000 ms\n-------------------------------------------\nTransformers: L'âge de l'extinction (2014)\n\n-------------------------------------------\nTime: 1499416768000 ms\n-------------------------------------------\nX-Men: L'affrontement final (2006)\n\n-------------------------------------------\nTime: 1499416770000 ms\n-------------------------------------------\n\n-------------------------------------------\nTime: 1499416772000 ms\n-------------------------------------------\n\n-------------------------------------------\nTime: 1499416774000 ms\n-------------------------------------------\n\n-------------------------------------------\nTime: 1499416776000 ms\n-------------------------------------------\nBattleship (2012)\n\n-------------------------------------------\nTime: 1499416778000 ms\n-------------------------------------------\nKing Kong (2005)\n\n-------------------------------------------\nTime: 1499416780000 ms\n-------------------------------------------\nÀ la croisée des mondes: La boussole d'or (2007)\n\n-------------------------------------------\nTime: 1499416782000 ms\n-------------------------------------------\n\n-------------------------------------------\nTime: 1499416784000 ms\n-------------------------------------------\nTitanic (1997)\n\n-------------------------------------------\nTime: 1499416786000 ms\n-------------------------------------------\nRogue One: A Star Wars story (2016)\n\n-------------------------------------------\nTime: 1499416788000 ms\n-------------------------------------------\n\n-------------------------------------------\nTime: 1499416790000 ms\n-------------------------------------------\nLe monde de Dory (2016)\n\n-------------------------------------------\nTime: 1499416792000 ms\n-------------------------------------------\nToy Story 3 (2010)\n\n-------------------------------------------\nTime: 1499416794000 ms\n-------------------------------------------\n\n-------------------------------------------\nTime: 1499416796000 ms\n-------------------------------------------\nIron Man 3 (2013)\n\n-------------------------------------------\nTime: 1499416798000 ms\n-------------------------------------------\n\n-------------------------------------------\nTime: 1499416800000 ms\n-------------------------------------------\n\n-------------------------------------------\nTime: 1499416802000 ms\n-------------------------------------------\nSpider-Man 2 (2004)\n\n"
+      "text" : "brokers: String = localhost:9092\ntopics: String = genre\nssc: org.apache.spark.streaming.StreamingContext = org.apache.spark.streaming.StreamingContext@6ae3b966\ntopicsSet: scala.collection.immutable.Set[String] = Set(genre)\nkafkaParams: scala.collection.immutable.Map[String,String] = Map(bootstrap.servers -> localhost:9092)\ngenreStream: org.apache.spark.streaming.dstream.InputDStream[(String, String)] = org.apache.spark.streaming.kafka.DirectKafkaInputDStream@27c65fa8\nbs: notebook.front.widgets.charts.BarChart[List[(String, Int)]] = <BarChart widget>\ngenreValues: Unit = ()\nres32: notebook.front.widgets.charts.BarChart[List[(String, Int)]] = <BarChart widget>\n"
+    }, {
+      "metadata" : { },
+      "data" : {
+        "text/html" : "<div>\n      <script data-this=\"{&quot;dataId&quot;:&quot;anon9f3e4c185d40082d9d7e869aaaf2288c&quot;,&quot;dataInit&quot;:[{&quot;_1&quot;:&quot;&quot;,&quot;_2&quot;:0}],&quot;genId&quot;:&quot;1901182192&quot;}\" type=\"text/x-scoped-javascript\">/*<![CDATA[*/req(['../javascripts/notebook/playground','../javascripts/notebook/magic/barChart'], \n      function(playground, _magicbarChart) {\n        // data ==> data-this (in observable.js's scopedEval) ==> this in JS => { dataId, dataInit, ... }\n        // this ==> scope (in observable.js's scopedEval) ==> this.parentElement ==> div.container below (toHtml)\n\n        playground.call(data,\n                        this\n                        ,\n                        {\n    \"f\": _magicbarChart,\n    \"o\": {\"x\":\"_1\",\"y\":\"_2\",\"width\":200,\"height\":200}\n  }\n  \n                        \n                        \n                      );\n      }\n    );/*]]>*/</script>\n    <div>\n      <span class=\"chart-total-item-count\"><p data-bind=\"text: value\"><script data-this=\"{&quot;valueId&quot;:&quot;anonf0491369f8dc161b28fdf940655aa863&quot;,&quot;initialValue&quot;:&quot;1&quot;}\" type=\"text/x-scoped-javascript\">/*<![CDATA[*/\nreq(\n['observable', 'knockout'],\nfunction (O, ko) {\n  ko.applyBindings({\n      value: O.makeObservable(valueId, initialValue)\n    },\n    this\n  );\n});\n        /*]]>*/</script></p> entries total</span>\n      <span class=\"chart-sampling-warning\"><p data-bind=\"text: value\"><script data-this=\"{&quot;valueId&quot;:&quot;anon35461264e48be3b24603a78c2e58a600&quot;,&quot;initialValue&quot;:&quot;&quot;}\" type=\"text/x-scoped-javascript\">/*<![CDATA[*/\nreq(\n['observable', 'knockout'],\nfunction (O, ko) {\n  ko.applyBindings({\n      value: O.makeObservable(valueId, initialValue)\n    },\n    this\n  );\n});\n        /*]]>*/</script></p></span>\n      <div>\n      </div>\n    </div></div>"
+      },
+      "output_type" : "execute_result",
+      "execution_count" : 19,
+      "time" : "Took: 5 seconds 191 milliseconds, at 2017-7-9 23:8"
     } ]
   }, {
     "metadata" : {
