@@ -64,13 +64,53 @@ object Main {
      * ---------------------------
      */
 
-    processGenre(brokers, "genre", baseStream)
-    processDirector(brokers, "director", baseStream)
+    //processGenre(brokers, "genre", baseStream)
+   // processDirector(brokers, "director", baseStream)
+    processActor(brokers, "actors", baseStream)
 
     ssc.start()
     ssc.awaitTermination()
 
   }
+
+  // ---------------------------------------
+  def processActor(brokers: String, topic: String, stream: DStream[Movie]): Unit = {
+    case class Actor(sum: Float, count: Int) {
+      val avg = (sum / scala.math.max(1, count)).toInt
+
+      def +(sum: Float, count: Int): Actor = Actor(
+        this.sum + sum,
+        this.count + count
+      )
+    }
+
+    def serializeDirector(rdd: RDD[(String, Actor)]): String = {
+      val genres = rdd
+        .map(tuple => Map(tuple._1 -> tuple._2.avg))
+        .collect()
+        .reduce(_ ++ _)
+
+      Json.toJson(genres).toString()
+    }
+
+    def updateDirector(newValues: Seq[Option[Float]], state: Option[Actor]): Option[Actor] = {
+      val prev = state.getOrElse(Actor(0, 0))
+      val values = newValues.flatMap(x => x)
+      val current = prev + (values.sum, values.size)
+      Some(current)
+    }
+
+
+    stream.flatMap(movie => {
+                    for (actor <- movie.actors) yield (actor, movie.sentimentScore)
+            })
+          .updateStateByKey(updateDirector)
+          .foreachRDD(rdd => {
+            if (!rdd.isEmpty)
+              sendTo(topic, brokers, serializeDirector(rdd))
+          })
+  }
+  // ---------------------------------------
 
   // ---------------------------------------
   def processDirector(brokers: String, topic: String, stream: DStream[Movie]): Unit = {
