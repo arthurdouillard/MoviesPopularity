@@ -15,31 +15,33 @@ object Main {
   implicit val reviewFormat = Json.format[Review]
   implicit val movieFormat = Json.format[Movie]
 
-  case class Genre(sum: Float, count: Int) {
-    val avg = (sum / scala.math.max(1, count)).toInt
-
-    def +(sum: Float, count: Int): Genre = Genre(
-      this.sum + sum,
-      this.count + count
-    )
-  }
-
   def main(args: Array[String]) {
     if (args.length < 3) {
       System.err.println("Please specify the following arguments: <brokers_list>  <fetch_topic> <save_topic>")
       System.exit(1)
     }
 
-
     val Array(brokers, topicFetch, topicSave) = args
 
+    /*
+     * ---------------------------
+     *    1. Set up of the different config need by Spark, Spark-streaming, and Kafka.
+     * ---------------------------
+     */
     val sc = new SparkConf().setAppName("MoviesPopularity").setMaster("local[2]")
     val ssc = new StreamingContext(sc, Seconds(2))
     ssc.checkpoint("/tmp/temp")
     ssc.sparkContext.addFile("analyser/sentimentAnalyser.py")
 
-    val pyCmd = getPythonCmd()
 
+    /*
+     * ---------------------------
+     *    1. Get the raw stream from the fetcher.
+     *    2. Process the reviews through the sentiment analyser.
+     *    3. Incorporate the predicted sentiments in the data.
+     * ---------------------------
+     */
+    val pyCmd = getPythonCmd()
     val streamRaw = setUpStream(brokers, topicFetch, ssc)
     streamRaw
       .map(_._2)
@@ -49,20 +51,95 @@ object Main {
         }
       })
 
-
     val streamSent = setUpStream(brokers, topicSave, ssc)
     val baseStream = streamSent.map(_._2)
                               .map(Json.parse(_).as[Movie])
                               .map(movie => movie.copy(sentimentScore = Some(calculateFinalScore(movie))))
 
+    /*
+     * ---------------------------
+     *    Genres processing
+     *    Send a serialized map of [GenreName -> GenreAverage].
+     *    The average is based on the sentimental score.
+     * ---------------------------
+     */
+
     processGenre(brokers, "genre", baseStream)
+    processDirector(brokers, "director", baseStream)
 
     ssc.start()
     ssc.awaitTermination()
 
   }
 
+  // ---------------------------------------
+  def processDirector(brokers: String, topic: String, stream: DStream[Movie]): Unit = {
+    case class Director(sum: Float, count: Int) {
+      val avg = (sum / scala.math.max(1, count)).toInt
+
+      def +(sum: Float, count: Int): Director = Director(
+        this.sum + sum,
+        this.count + count
+      )
+    }
+
+    def serializeDirector(rdd: RDD[(String, Director)]): String = {
+      val genres = rdd
+        .map(tuple => Map(tuple._1 -> tuple._2.avg))
+        .collect()
+        .reduce(_ ++ _)
+
+      Json.toJson(genres).toString()
+    }
+
+    def updateDirector(newValues: Seq[Option[Float]], state: Option[Director]): Option[Director] = {
+      val prev = state.getOrElse(Director(0, 0))
+      val values = newValues.flatMap(x => x)
+      val current = prev + (values.sum, values.size)
+      Some(current)
+    }
+
+
+    stream.filter(_.director.isDefined)
+        .map(movie => (movie.director.get, movie.sentimentScore))
+        .updateStateByKey(updateDirector)
+        .foreachRDD(rdd => {
+          if (!rdd.isEmpty)
+            sendTo(topic, brokers, serializeDirector(rdd))
+        })
+
+  }
+  // ---------------------------------------
+
+
+  // ---------------------------------------
   def processGenre(brokers: String, topic: String, stream: DStream[Movie]): Unit = {
+    case class Genre(sum: Float, count: Int) {
+      val avg = (sum / scala.math.max(1, count)).toInt
+
+      def +(sum: Float, count: Int): Genre = Genre(
+        this.sum + sum,
+        this.count + count
+      )
+    }
+
+    def serializeGenre(rdd: RDD[(String, Genre)]): String = {
+      val genres = rdd
+        .map(tuple => Map(tuple._1 -> tuple._2.avg))
+        .collect()
+        .reduce(_ ++ _)
+
+      Json.toJson(genres).toString()
+    }
+
+    def updateGenre(newValues: Seq[Option[Float]], state: Option[Genre]): Option[Genre] = {
+      val prev = state.getOrElse(Genre(0, 0))
+      val values = newValues.flatMap(x => x)
+      val current = prev + (values.sum, values.size)
+      Some(current)
+    }
+
+
     stream.flatMap(movie => {
                     for (genre <- movie.genres) yield (genre, movie.sentimentScore)
                   })
@@ -72,22 +149,8 @@ object Main {
                       sendTo(topic, brokers, serializeGenre(rdd))
                   })
   }
+  // ---------------------------------------
 
-  def serializeGenre(rdd: RDD[(String, Genre)]): String = {
-    val genres = rdd
-      .map(tuple => Map(tuple._1 -> tuple._2.avg))
-      .collect()
-      .reduce(_ ++ _)
-
-    Json.toJson(genres).toString()
-  }
-
-  def updateGenre(newValues: Seq[Option[Float]], state: Option[Genre]): Option[Genre] = {
-    val prev = state.getOrElse(Genre(0, 0))
-    val values = newValues.flatMap(x => x)
-    val current = prev + (values.sum, values.size)
-    Some(current)
-  }
 
   def sendTo(topic: String, brokers: String, value: String): Unit = {
     val producer = new Producer(topic, brokers)

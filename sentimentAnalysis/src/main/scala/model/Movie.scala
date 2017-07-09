@@ -11,7 +11,7 @@ case class Movie (
                  genres: Seq[String],
                  score: Float,
                  year: Int,
-                 direction: Option[String],
+                 director: Option[String],
                  actors: Seq[String],
                  reviews: Seq[Review],
                  sentimentScore: Option[Float]
