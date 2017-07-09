@@ -20,7 +20,7 @@ object Main {
       System.err.println("Please specify the following arguments: <brokers_list>  <fetch_topic> <save_topic>")
       System.exit(1)
     }
-
+    
     val Array(brokers, topicFetch, topicSave) = args
 
     /*
@@ -64,8 +64,8 @@ object Main {
      * ---------------------------
      */
 
-    //processGenre(brokers, "genre", baseStream)
-   // processDirector(brokers, "director", baseStream)
+    processGenre(brokers, "genre", baseStream)
+    processDirector(brokers, "director", baseStream)
     processActor(brokers, "actors", baseStream)
 
     ssc.start()
@@ -90,7 +90,7 @@ object Main {
         .collect()
         .reduce(_ ++ _)
 
-      Json.toJson(genres).toString()
+      Json.stringify(Json.toJson(genres))
     }
 
     def updateDirector(newValues: Seq[Option[Float]], state: Option[Actor]): Option[Actor] = {
@@ -129,7 +129,7 @@ object Main {
         .collect()
         .reduce(_ ++ _)
 
-      Json.toJson(genres).toString()
+      Json.stringify(Json.toJson(genres))
     }
 
     def updateDirector(newValues: Seq[Option[Float]], state: Option[Director]): Option[Director] = {
@@ -169,7 +169,7 @@ object Main {
         .collect()
         .reduce(_ ++ _)
 
-      Json.toJson(genres).toString()
+      Json.stringify(Json.toJson(genres))
     }
 
     def updateGenre(newValues: Seq[Option[Float]], state: Option[Genre]): Option[Genre] = {
