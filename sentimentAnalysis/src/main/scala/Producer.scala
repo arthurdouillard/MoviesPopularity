@@ -8,12 +8,10 @@ class Producer(topic: String, brokerList:String) {
   val kafkaProps = new Properties()
   kafkaProps.put("bootstrap.servers", brokerList)
 
-  // This is mandatory, even though we don't send keys
   kafkaProps.put("key.serializer", "org.apache.kafka.common.serialization.StringSerializer")
   kafkaProps.put("value.serializer", "org.apache.kafka.common.serialization.StringSerializer")
   kafkaProps.put("acks", "all")
 
-  // how many times to retry when produce request fails?
   kafkaProps.put("retries", "3")
   kafkaProps.put("linger.ms", "5")
   kafkaProps.put("producer.type", "async")

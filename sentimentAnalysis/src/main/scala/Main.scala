@@ -26,10 +26,10 @@ object Main {
 
 
     val Array(brokers, topicFetch, topicSave) = args
-    val topicSentiment = "sentiment"
 
     val sc = new SparkConf().setAppName("MoviesPopularity").setMaster("local[2]")
     val ssc = new StreamingContext(sc, Seconds(2))
+    ssc.checkpoint("/tmp/temp")
     ssc.sparkContext.addFile("analyser/sentimentAnalyser.py")
 
     val pyCmd = getPythonCmd()
@@ -38,19 +38,21 @@ object Main {
     streamRaw
       .map(_._2)
       .foreachRDD(rdd => {
-        rdd.pipe(pyCmd).foreach(movie => {
-          sendTo(topicSentiment, brokers, movie)
-          sendTo(topicSave, brokers, movie)
-        })
+        rdd.pipe(pyCmd).foreachPartition { partitionOfRecords =>
+          partitionOfRecords.foreach(movie => sendTo(topicSave, brokers, movie))
+        }
       })
 
 
-    val streamSent = setUpStream(brokers, topicSentiment, ssc)
-    streamSent
-      .map(_._2)
-      .map(Json.parse(_).as[Movie])
-      .map(movie => movie.copy(sentimentScore = Some(calculateFinalScore(movie))))
-      .foreachRDD(rdd => rdd.foreach(println))
+    val streamSent = setUpStream(brokers, topicSave, ssc)
+    val baseStream = streamSent.map(_._2)
+                              .map(Json.parse(_).as[Movie])
+                              .map(movie => movie.copy(sentimentScore = Some(calculateFinalScore(movie))))
+
+    val genreStream = baseStream.map(movie => movie.genres)
+                                .map(genre => (genre, 1))
+                                .updateStateByKey(updateGenres)
+                                .foreachRDD(rdd => rdd.foreach(println))
 
     /*
       .foreachRDD(rdd => rdd.foreach(movie => {
@@ -82,10 +84,14 @@ object Main {
   }
 
 
-  def update(i: Int, count: Option[Int]) = {
-    val prev = count.getOrElse(0)
-    val current = prev + i
-    Some(current)
+  def updateGenres(newValues: Seq[Int], state: Option[(String, Int)]) : Option[(String, Int)] = {
+    val count = newValues.sum
+    val newState = state match {
+      case Some(value) => (value._1, value._2 + count)
+      case None => ("", count)
+    }
+
+     Some(newState)
   }
 
   def sendTo(topic: String, brokers: String, value: String): Unit = {
@@ -103,8 +109,6 @@ object Main {
   }
 
   def setUpStream(brokers: String, topic: String, ssc: StreamingContext): InputDStream[(String, String)] = {
-
-
 
     val kafkaParams = Map[String, String]("bootstrap.servers" -> brokers)
 
