@@ -9,9 +9,6 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.streaming.dstream.{DStream, InputDStream}
 import play.api.libs.json.Json
 
-import scala.collection.SortedMap
-import scala.collection.immutable.ListMap
-
 
 object Main {
 
@@ -68,54 +65,13 @@ object Main {
      */
 
     processGenre(brokers, "genre", baseStream)
-    processDirector(brokers, "directors", baseStream)
+    processDirector(brokers, "director", baseStream)
     processActor(brokers, "actors", baseStream)
-    processYear(brokers, "years", baseStream)
 
     ssc.start()
     ssc.awaitTermination()
 
   }
-
-  // ---------------------------------------
-  def processYear(brokers: String, topic: String, stream: DStream[Movie]): Unit = {
-    case class Year(sum: Float, count: Int) {
-      val avg = (sum / scala.math.max(1, count)).toInt
-
-      def +(sum: Float, count: Int): Year = Year(
-        this.sum + sum,
-        this.count + count
-      )
-    }
-
-    def serializeYear(rdd: RDD[(Int, Year)]): String = {
-      val years = rdd
-        .map(tuple => Map(tuple._1 -> tuple._2.avg))
-        .collect()
-        .reduce(_ ++ _)
-
-      val toSerialize = ListMap(years.toSeq.sortWith(_._1 < _._1):_*)
-
-      Json.stringify(Json.toJson(toSerialize))
-    }
-
-    def updateYear(newValues: Seq[Option[Float]], state: Option[Year]): Option[Year] = {
-      val prev = state.getOrElse(Year(0, 0))
-      val values = newValues.flatMap(x => x)
-      val current = prev + (values.sum, values.size)
-      Some(current)
-    }
-
-
-    stream.filter(_.year > 0)
-      .map(movie => (movie.year, movie.sentimentScore))
-      .updateStateByKey(updateYear)
-      .foreachRDD(rdd => {
-        if (!rdd.isEmpty)
-          sendTo(topic, brokers, serializeYear(rdd))
-      })
-  }
-  // ---------------------------------------
 
   // ---------------------------------------
   def processActor(brokers: String, topic: String, stream: DStream[Movie]): Unit = {
@@ -129,14 +85,11 @@ object Main {
     }
 
     def serializeDirector(rdd: RDD[(String, Actor)]): String = {
-      val actors = rdd
-        .map(tuple => Map(tuple._1 -> tuple._2.avg))
-        .collect()
-        .reduce(_ ++ _)
+      val genres = rdd
+        .takeOrdered(100)(Ordering[Int].reverse.on(x => x._2.avg))
+        .map(tuple => tuple._1 -> tuple._2.avg).toMap
 
-      val toSerialize = ListMap(actors.toSeq.sortWith(_._2 > _._2):_*).take(10)
-
-      Json.stringify(Json.toJson(toSerialize))
+      Json.stringify(Json.toJson(genres))
     }
 
     def updateDirector(newValues: Seq[Option[Float]], state: Option[Actor]): Option[Actor] = {
@@ -170,14 +123,11 @@ object Main {
     }
 
     def serializeDirector(rdd: RDD[(String, Director)]): String = {
-      val directors = rdd
-        .map(tuple => Map(tuple._1 -> tuple._2.avg))
-        .collect()
-        .reduce(_ ++ _)
+      val genres = rdd
+        .takeOrdered(100)(Ordering[Int].reverse.on(x => x._2.avg))
+        .map(tuple => tuple._1 -> tuple._2.avg).toMap
 
-      val toSerialize = ListMap(directors.toSeq.sortWith(_._2 > _._2):_*).take(10)
-
-      Json.stringify(Json.toJson(directors))
+      Json.stringify(Json.toJson(genres))
     }
 
     def updateDirector(newValues: Seq[Option[Float]], state: Option[Director]): Option[Director] = {
