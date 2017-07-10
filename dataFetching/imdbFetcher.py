@@ -3,6 +3,9 @@
 import argparse
 import json
 import sys
+import time
+import threading
+
 
 from bs4 import BeautifulSoup
 from kafka import KafkaProducer
@@ -31,30 +34,37 @@ def parse_movies_list(args):
     parse_dollars = lambda x: int(x.replace('$', '').replace(',', ''))
 
     movies = soup.find_all('td')
-    movies_data = []
     spaces = ' ' * 80
+
+    threads = []
     for c, i in enumerate(range(0, 6 * args.max, 6)):
         name = movies[i+2].text.strip()
+        movie_data = {}
+
+        name = movies[i+2].text.strip()
+        movie_data['budget'] = parse_dollars(movies[i+3].text)
+        movie_data['gross'] = parse_dollars(movies[i+5].text)
+
+        while threading.active_count() > 5:
+            time.sleep(0.5)
+        thread = threading.Thread(target=helper,
+                                  args=(movie_data, name, args, producer),
+                                  daemon=True)
+        thread.start()
+        threads.append(thread)
 
         if args.verbose:
             print('{}\r'.format(spaces), end='')
             percent = round(c / args.max * 100, 2)
             print('{} %\t{}\r'.format(percent, name), end='')
 
-        movie_data = {}
+    while threading.active_count() > 3:
+        time.sleep(1)
 
-        movie_data['budget'] = parse_dollars(movies[i+3].text)
-        movie_data['gross'] = parse_dollars(movies[i+5].text)
-        movie_data.update(get_imdb_data(name, args))
-        movies_data.append(movie_data)
 
-        producer.send(args.topic, json.dumps(movie_data).encode())
-
-        if args.save is not None and c % args.step == 0:
-            save_data(args.save, movies_data)
-
-    if args.save is not None:
-        save_data(args.save, movies_data)
+def helper(movie_data, name, args, producer):
+    movie_data.update(get_imdb_data(name, args))
+    producer.send(args.topic, json.dumps(movie_data).encode())
 
 
 def get_imdb_data(name, args):
