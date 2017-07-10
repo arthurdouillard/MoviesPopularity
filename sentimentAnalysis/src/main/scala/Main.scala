@@ -129,7 +129,7 @@ object Main {
 
     def serializeActor(rdd: RDD[(String, AvgHolder)]): String = {
       val data = rdd
-        .takeOrdered(100)(Ordering[Int].reverse.on(x => x._2.avg))
+        .takeOrdered(10)(Ordering[Int].reverse.on(x => x._2.avg))
         .map(tuple => tuple._1 -> tuple._2.avg).toMap
 
       Json.stringify(Json.toJson(data))
@@ -159,7 +159,7 @@ object Main {
 
     def serializeDirector(rdd: RDD[(String, AvgHolder)]): String = {
       val data = rdd
-        .takeOrdered(100)(Ordering[Int].reverse.on(x => x._2.avg))
+        .takeOrdered(10)(Ordering[Int].reverse.on(x => x._2.avg))
         .map(tuple => tuple._1 -> tuple._2.avg).toMap
 
       Json.stringify(Json.toJson(data))
