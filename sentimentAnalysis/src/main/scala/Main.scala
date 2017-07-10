@@ -28,7 +28,7 @@ object Main {
      *    1. Set up of the different config need by Spark, Spark-streaming, and Kafka.
      * ---------------------------
      */
-    val sc = new SparkConf().setAppName("MoviesPopularity").setMaster("local[2]")
+    val sc = new SparkConf().setAppName("MoviesPopularity").setMaster("local[*]")
     val ssc = new StreamingContext(sc, Seconds(2))
     ssc.checkpoint("/tmp/temp")
     ssc.sparkContext.addFile("analyser/sentimentAnalyser.py")

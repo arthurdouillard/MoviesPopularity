@@ -32,14 +32,6 @@
     "cell_type" : "code",
     "source" : "import org.apache.spark.SparkConf\nimport org.apache.spark.streaming.kafka.KafkaUtils\nimport org.apache.spark.streaming.{Seconds, StreamingContext}\nimport org.apache.spark.streaming.dstream.InputDStream\nimport kafka.serializer.StringDecoder\nimport play.api.libs.json.Json\nimport notebook.front.widgets.charts",
     "outputs" : [ {
-      "metadata" : { },
-      "data" : {
-        "text/html" : ""
-      },
-      "output_type" : "execute_result",
-      "execution_count" : 2,
-      "time" : "Took: 1 second 731 milliseconds, at 2017-7-9 22:45"
-    }, {
       "name" : "stdout",
       "output_type" : "stream",
       "text" : "import org.apache.spark.SparkConf\nimport org.apache.spark.streaming.kafka.KafkaUtils\nimport org.apache.spark.streaming.{Seconds, StreamingContext}\nimport org.apache.spark.streaming.dstream.InputDStream\nimport kafka.serializer.StringDecoder\nimport play.api.libs.json.Json\nimport notebook.front.widgets.charts\n"
@@ -49,37 +41,15 @@
         "text/html" : ""
       },
       "output_type" : "execute_result",
-      "execution_count" : 3,
-      "time" : "Took: 1 second 512 milliseconds, at 2017-7-9 22:45"
+      "execution_count" : 1,
+      "time" : "Took: 3 seconds 313 milliseconds, at 2017-7-10 1:22"
     } ]
   }, {
     "metadata" : {
       "id" : "D324BFCEE31E4F89B782C8EE73C1ACB4"
     },
     "cell_type" : "markdown",
-    "source" : "## Case classes"
-  }, {
-    "metadata" : {
-      "trusted" : true,
-      "input_collapsed" : false,
-      "collapsed" : false,
-      "id" : "C21023AFFE0742FE86B341B55DD91620"
-    },
-    "cell_type" : "code",
-    "source" : "\ncase class Review (\n                  title: String,\n                  score: Float,\n                  content: String,\n                  sentiment: Int\n                  )\n\nobject Review {\n  implicit val reviewFormat = play.api.libs.json.Json.format[Review]\n}\n\ncase class Movie (\n                 budget: Long,\n                 gross: Long,\n                 title: String,\n                 genres: Seq[String],\n                 score: Float,\n                 year: Int,\n                 direction: Option[String],\n                 actors: Seq[String],\n                 reviews: Seq[Review],\n                 sentimentScore: Option[Float]\n                 )\n\nobject Movie{\n  implicit val movieFormat = play.api.libs.json.Json.format[Movie]\n}",
-    "outputs" : [ {
-      "name" : "stdout",
-      "output_type" : "stream",
-      "text" : "defined class Review\ndefined object Review\ndefined class Movie\ndefined object Movie\n"
-    }, {
-      "metadata" : { },
-      "data" : {
-        "text/html" : ""
-      },
-      "output_type" : "execute_result",
-      "execution_count" : 4,
-      "time" : "Took: 3 seconds 667 milliseconds, at 2017-7-9 22:47"
-    } ]
+    "source" : "## Methods"
   }, {
     "metadata" : {
       "trusted" : true,
@@ -99,37 +69,41 @@
         "text/html" : ""
       },
       "output_type" : "execute_result",
-      "execution_count" : 6,
-      "time" : "Took: 2 seconds 297 milliseconds, at 2017-7-9 22:47"
+      "execution_count" : 2,
+      "time" : "Took: 15 seconds 815 milliseconds, at 2017-7-10 2:26"
     } ]
   }, {
     "metadata" : {
       "trusted" : true,
       "input_collapsed" : false,
       "collapsed" : false,
+      "presentation" : {
+        "tabs_state" : "{\n  \"tab_id\": \"#tab916006759-0\"\n}",
+        "pivot_chart_state" : "{\n  \"hiddenAttributes\": [],\n  \"menuLimit\": 200,\n  \"cols\": [],\n  \"rows\": [],\n  \"vals\": [],\n  \"exclusions\": {},\n  \"inclusions\": {},\n  \"unusedAttrsVertical\": 85,\n  \"autoSortUnusedAttrs\": false,\n  \"inclusionsInfo\": {},\n  \"aggregatorName\": \"Minimum\",\n  \"rendererName\": \"Bar Chart\"\n}"
+      },
       "id" : "3E67AA5A8C664319883A11CA7E2C62B2"
     },
     "cell_type" : "code",
-    "source" : "val brokers = \"localhost:9092\"\nval topics = \"genre\"\n\nval ssc = StreamingContext.getActiveOrCreate(() => new StreamingContext(sc, Seconds(2)))\n\nval topicsSet = topics.split(\",\").toSet\nval kafkaParams = Map[String, String](\"bootstrap.servers\" -> brokers)\nval genreStream = setUpStream(brokers, topics, ssc)\n\nval bs  = BarChart(List((\"\", 0)), maxPoints =200, sizes=(200, 200))\nval genreValues = genreStream.map(_._2)\n                            .map(Json.parse(_).as[Map[String, Int]])\n                            .flatMap(_.toList)\n                            .foreachRDD { rdd => bs.applyOn(rdd.collect().toList) }\n                          \n\nssc.start()\nbs",
+    "source" : "val brokers = \"localhost:9092\"\n\nval m = 200\nval size_x = 200\nval size_y = 200\nval ssc = StreamingContext.getActiveOrCreate(() => new StreamingContext(sc, Seconds(2)))\n\n/* Setting up streams */\nval genreStream = setUpStream(brokers, \"genre\", ssc)\n//val directorStream = setUpStream(brokers, \"director\", ssc)\n//val actorStream = setUpStream(brokers, \"actors\", ssc)\n\n/* Creating charts */\nval genreBs  = BarChart(List((\"\", 0)), maxPoints =m, sizes=(size_x, size_y), fields=Some((\"Genre\", \"Avg Grade\")))\n//val directorBs = BarChart(List((\"\", 0)), maxPoints =m, sizes=(size_x, size_y), fields=Some((\"Directors\", \"Avg Grade\")))\n//val actorBs = BarChart(List((\"\", 0)), maxPoints =m, sizes=(size_x, size_y), fields=Some((\"Actors\", \"Avg Grade\")))\n\n/* Updating values */\ngenreStream.map(_._2)\n            .map(Json.parse(_).as[Map[String, Int]])\n            .flatMap(_.toList)\n            .foreachRDD { rdd => genreBs.applyOn(rdd.collect().toList) }\n\n/*directorStream.map(_._2)\n            .map(Json.parse(_).as[Map[String, Int]])\n            .flatMap(_.toList)\n            .foreachRDD { rdd => directorBs.applyOn(rdd.collect().toList) }\n\nactorStream.map(_._2)\n            .map(Json.parse(_).as[Map[String, Int]])\n            .flatMap(_.toList)\n            .foreachRDD { rdd => actorBs.applyOn(rdd.collect().toList) }*/\n                          \n\n\n/* Design */\n/*val all = List(genreBs, directorBs, actorBs)\nval maxPointsBox = new InputBox[Int](m, \"Max Points (for ALL)\")\n\nmaxPointsBox.currentData --> Connection.fromObserver { max:Int =>\n  all foreach { w =>\n    w.newMax(max)\n  }\n}*/\n\n\nssc.start()\ngenreBs\n\n/*containerFluid(\n  List(\n      List((maxPointsBox, 12)),\n      List((html(<hr/>), 12)),\n      List(\n        (genreBs, 6)\n      ),\n      List(\n        (directorBs, 6)\n      ),\n      List(\n        (actorBs, 6)\n      )\n))*/\n",
     "outputs" : [ {
       "name" : "stdout",
       "output_type" : "stream",
-      "text" : "brokers: String = localhost:9092\ntopics: String = genre\nssc: org.apache.spark.streaming.StreamingContext = org.apache.spark.streaming.StreamingContext@6ae3b966\ntopicsSet: scala.collection.immutable.Set[String] = Set(genre)\nkafkaParams: scala.collection.immutable.Map[String,String] = Map(bootstrap.servers -> localhost:9092)\ngenreStream: org.apache.spark.streaming.dstream.InputDStream[(String, String)] = org.apache.spark.streaming.kafka.DirectKafkaInputDStream@27c65fa8\nbs: notebook.front.widgets.charts.BarChart[List[(String, Int)]] = <BarChart widget>\ngenreValues: Unit = ()\nres32: notebook.front.widgets.charts.BarChart[List[(String, Int)]] = <BarChart widget>\n"
+      "text" : "brokers: String = localhost:9092\nm: Int = 200\nsize_x: Int = 200\nsize_y: Int = 200\nssc: org.apache.spark.streaming.StreamingContext = org.apache.spark.streaming.StreamingContext@1ff46e13\ngenreStream: org.apache.spark.streaming.dstream.InputDStream[(String, String)] = org.apache.spark.streaming.kafka.DirectKafkaInputDStream@51bad2ae\ngenreBs: notebook.front.widgets.charts.BarChart[List[(String, Int)]] = <BarChart widget>\nres3: notebook.front.widgets.charts.BarChart[List[(String, Int)]] = <BarChart widget>\n"
     }, {
       "metadata" : { },
       "data" : {
-        "text/html" : "<div>\n      <script data-this=\"{&quot;dataId&quot;:&quot;anon9f3e4c185d40082d9d7e869aaaf2288c&quot;,&quot;dataInit&quot;:[{&quot;_1&quot;:&quot;&quot;,&quot;_2&quot;:0}],&quot;genId&quot;:&quot;1901182192&quot;}\" type=\"text/x-scoped-javascript\">/*<![CDATA[*/req(['../javascripts/notebook/playground','../javascripts/notebook/magic/barChart'], \n      function(playground, _magicbarChart) {\n        // data ==> data-this (in observable.js's scopedEval) ==> this in JS => { dataId, dataInit, ... }\n        // this ==> scope (in observable.js's scopedEval) ==> this.parentElement ==> div.container below (toHtml)\n\n        playground.call(data,\n                        this\n                        ,\n                        {\n    \"f\": _magicbarChart,\n    \"o\": {\"x\":\"_1\",\"y\":\"_2\",\"width\":200,\"height\":200}\n  }\n  \n                        \n                        \n                      );\n      }\n    );/*]]>*/</script>\n    <div>\n      <span class=\"chart-total-item-count\"><p data-bind=\"text: value\"><script data-this=\"{&quot;valueId&quot;:&quot;anonf0491369f8dc161b28fdf940655aa863&quot;,&quot;initialValue&quot;:&quot;1&quot;}\" type=\"text/x-scoped-javascript\">/*<![CDATA[*/\nreq(\n['observable', 'knockout'],\nfunction (O, ko) {\n  ko.applyBindings({\n      value: O.makeObservable(valueId, initialValue)\n    },\n    this\n  );\n});\n        /*]]>*/</script></p> entries total</span>\n      <span class=\"chart-sampling-warning\"><p data-bind=\"text: value\"><script data-this=\"{&quot;valueId&quot;:&quot;anon35461264e48be3b24603a78c2e58a600&quot;,&quot;initialValue&quot;:&quot;&quot;}\" type=\"text/x-scoped-javascript\">/*<![CDATA[*/\nreq(\n['observable', 'knockout'],\nfunction (O, ko) {\n  ko.applyBindings({\n      value: O.makeObservable(valueId, initialValue)\n    },\n    this\n  );\n});\n        /*]]>*/</script></p></span>\n      <div>\n      </div>\n    </div></div>"
+        "text/html" : "<div>\n      <script data-this=\"{&quot;dataId&quot;:&quot;anondd523282731292c6a1d96660e8b4d4a0&quot;,&quot;dataInit&quot;:[{}],&quot;genId&quot;:&quot;1891467321&quot;}\" type=\"text/x-scoped-javascript\">/*<![CDATA[*/req(['../javascripts/notebook/playground','../javascripts/notebook/magic/barChart'], \n      function(playground, _magicbarChart) {\n        // data ==> data-this (in observable.js's scopedEval) ==> this in JS => { dataId, dataInit, ... }\n        // this ==> scope (in observable.js's scopedEval) ==> this.parentElement ==> div.container below (toHtml)\n\n        playground.call(data,\n                        this\n                        ,\n                        {\n    \"f\": _magicbarChart,\n    \"o\": {\"x\":\"Genre\",\"y\":\"Avg Grade\",\"width\":200,\"height\":200}\n  }\n  \n                        \n                        \n                      );\n      }\n    );/*]]>*/</script>\n    <div>\n      <span class=\"chart-total-item-count\"><p data-bind=\"text: value\"><script data-this=\"{&quot;valueId&quot;:&quot;anon5a990a43115a5227bc9b5d9bf7190f76&quot;,&quot;initialValue&quot;:&quot;1&quot;}\" type=\"text/x-scoped-javascript\">/*<![CDATA[*/\nreq(\n['observable', 'knockout'],\nfunction (O, ko) {\n  ko.applyBindings({\n      value: O.makeObservable(valueId, initialValue)\n    },\n    this\n  );\n});\n        /*]]>*/</script></p> entries total</span>\n      <span class=\"chart-sampling-warning\"><p data-bind=\"text: value\"><script data-this=\"{&quot;valueId&quot;:&quot;anonf0c0e84e2e309f40e1c1bfd55da76624&quot;,&quot;initialValue&quot;:&quot;&quot;}\" type=\"text/x-scoped-javascript\">/*<![CDATA[*/\nreq(\n['observable', 'knockout'],\nfunction (O, ko) {\n  ko.applyBindings({\n      value: O.makeObservable(valueId, initialValue)\n    },\n    this\n  );\n});\n        /*]]>*/</script></p></span>\n      <div>\n      </div>\n    </div></div>"
       },
       "output_type" : "execute_result",
-      "execution_count" : 19,
-      "time" : "Took: 5 seconds 191 milliseconds, at 2017-7-9 23:8"
+      "execution_count" : 3,
+      "time" : "Took: 23 seconds 287 milliseconds, at 2017-7-10 2:27"
     } ]
   }, {
     "metadata" : {
       "trusted" : true,
       "input_collapsed" : false,
       "collapsed" : true,
-      "id" : "BEDB5F3F83E64A84B53AC4D978A06239"
+      "id" : "AF97665204A046DF80E24966366DD71E"
     },
     "cell_type" : "code",
     "source" : "",
