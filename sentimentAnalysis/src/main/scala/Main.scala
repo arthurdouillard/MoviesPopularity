@@ -69,7 +69,7 @@ object Main {
     processGenre(brokers, "genre", baseStream) // Map[String, Int]
     processDirector(brokers, "director", baseStream) // Map[String, Int]
     processActor(brokers, "actors", baseStream) // Map[String, Int]
-    processScore(brokers, "score", baseStream) // Map[String, List[Int]]
+    processScore(brokers, "score", baseStream) // Map[String, Int]
     processYear(brokers, "years", baseStream) // Map[String, Int] /!\ Convert the key from string to int !
 
     ssc.start()
@@ -131,11 +131,8 @@ object Main {
 
     case class ScorePair(v1: Float, v2: Float)
 
-    def serializeScore(rdd: RDD[(String, AvgPairHolder)]): String = {
-      val data = rdd
-        .takeOrdered(10)(Ordering[Int].reverse.on(x => x._2.avg1))
-        .map(tuple => tuple._1 -> List[Int](tuple._2.avg1, tuple._2.avg2)).toMap
-
+    def serializeScore(pairs: AvgPairHolder): String = {
+      val data = Map("score" -> pairs.avg1, "sentiment" -> pairs.avg2)
       Json.stringify(Json.toJson(data))
     }
 
@@ -148,14 +145,10 @@ object Main {
     }
 
     stream.filter(_.sentimentScore.isDefined)
-      .flatMap(movie => {
-        for (genre <- movie.genres) yield (genre, ScorePair(movie.score, movie.sentimentScore.get))
-      })
+      .map(movie => (1, ScorePair(movie.score, movie.sentimentScore.get)))
       .updateStateByKey(updateScore)
-      .foreachRDD(rdd => {
-        if (!rdd.isEmpty)
-          sendTo(topic, brokers, serializeScore(rdd))
-      })
+      .foreachRDD(_.foreach(x => sendTo(topic, brokers, serializeScore(x._2))))
+
   }
   // ---------------------------------------
 
