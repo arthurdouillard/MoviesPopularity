@@ -70,6 +70,7 @@ object Main {
     processDirector(brokers, "director", baseStream)
     processActor(brokers, "actors", baseStream)
     processScore(brokers, "score", baseStream)
+    processYear(brokers, "years", baseStream)
 
     ssc.start()
     ssc.awaitTermination()
@@ -85,6 +86,34 @@ object Main {
       this.count + count
     )
   }
+
+  def processYear(brokers: String, topic: String, stream: DStream[Movie]): Unit = {
+
+    def serializeYear(rdd: RDD[(Int, AvgHolder)]): String = {
+      val data = rdd
+        .takeOrdered(10)(Ordering[Int].reverse.on(x => x._2.avg))
+        .map(tuple => tuple._1.toString -> tuple._2.avg).toMap
+
+      Json.stringify(Json.toJson(data))
+    }
+
+    def updateYear(newValues: Seq[Option[Float]], state: Option[AvgHolder]): Option[AvgHolder] = {
+      val prev = state.getOrElse(AvgHolder(0, 0))
+      val values = newValues.flatMap(x => x)
+      val current = prev + (values.sum, values.size)
+      Some(current)
+    }
+
+
+    stream.map(movie => (movie.year, movie.sentimentScore))
+      .updateStateByKey(updateYear)
+      .foreachRDD(rdd => {
+        if (!rdd.isEmpty)
+          sendTo(topic, brokers, serializeYear(rdd))
+      })
+  }
+  // ---------------------------------------
+
 
   // ---------------------------------------
   def processScore(brokers: String, topic: String, stream: DStream[Movie]): Unit = {
