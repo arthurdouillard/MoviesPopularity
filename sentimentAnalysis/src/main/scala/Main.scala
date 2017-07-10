@@ -67,33 +67,74 @@ object Main {
     processGenre(brokers, "genre", baseStream)
     processDirector(brokers, "director", baseStream)
     processActor(brokers, "actors", baseStream)
+    processScore(brokers, "score", baseStream)
 
     ssc.start()
     ssc.awaitTermination()
 
   }
 
-  // ---------------------------------------
-  def processActor(brokers: String, topic: String, stream: DStream[Movie]): Unit = {
-    case class Actor(sum: Float, count: Int) {
-      val avg = (sum / scala.math.max(1, count)).toInt
 
-      def +(sum: Float, count: Int): Actor = Actor(
-        this.sum + sum,
+  case class AvgHolder(sum: Float, count: Int) {
+    val avg = (sum / scala.math.max(1, count)).toInt
+
+    def +(sum: Float, count: Int): AvgHolder = AvgHolder(
+      this.sum + sum,
+      this.count + count
+    )
+  }
+
+  // ---------------------------------------
+  def processScore(brokers: String, topic: String, stream: DStream[Movie]): Unit = {
+    case class AvgPairHolder(sum1: Float, sum2: Float, count: Int) {
+      val avg1 = (sum1 / scala.math.max(1, count)).toInt
+      val avg2 = (sum2 / scala.math.max(1, count)).toInt
+
+
+      def +(sum1: Float, sum2: Float, count: Int) = AvgPairHolder(
+        this.sum1 + sum1,
+        this.sum2 + sum2,
         this.count + count
       )
     }
 
-    def serializeDirector(rdd: RDD[(String, Actor)]): String = {
-      val genres = rdd
+    case class ScorePair(v1: Float, v2: Float)
+
+    def serializeScore(scores: AvgPairHolder): String = {
+      val data = Map("official score" -> scores.avg1,
+                     "sentiment score" -> scores.avg2)
+
+      Json.stringify(Json.toJson(data))
+    }
+
+    def updateScore(newValues: Seq[ScorePair], state: Option[AvgPairHolder]): Option[AvgPairHolder] = {
+      val prev = state.getOrElse(AvgPairHolder(0, 0, 0))
+      val sum1 = newValues.foldRight(0.0)((x, c) => x.v1 + c).toFloat
+      val sum2 = newValues.foldRight(0.0)((x, c) => x.v2 + c).toFloat
+      val current = prev + (sum1, sum2, newValues.size)
+      Some(current)
+    }
+
+    stream.filter(_.sentimentScore.isDefined)
+      .map(movie => (1, ScorePair(movie.score, movie.sentimentScore.get)))
+      .updateStateByKey(updateScore)
+      .foreachRDD(_.foreach(x => sendTo(topic, brokers, serializeScore(x._2))))
+  }
+  // ---------------------------------------
+
+  // ---------------------------------------
+  def processActor(brokers: String, topic: String, stream: DStream[Movie]): Unit = {
+
+    def serializeActor(rdd: RDD[(String, AvgHolder)]): String = {
+      val data = rdd
         .takeOrdered(100)(Ordering[Int].reverse.on(x => x._2.avg))
         .map(tuple => tuple._1 -> tuple._2.avg).toMap
 
-      Json.stringify(Json.toJson(genres))
+      Json.stringify(Json.toJson(data))
     }
 
-    def updateDirector(newValues: Seq[Option[Float]], state: Option[Actor]): Option[Actor] = {
-      val prev = state.getOrElse(Actor(0, 0))
+    def updateActor(newValues: Seq[Option[Float]], state: Option[AvgHolder]): Option[AvgHolder] = {
+      val prev = state.getOrElse(AvgHolder(0, 0))
       val values = newValues.flatMap(x => x)
       val current = prev + (values.sum, values.size)
       Some(current)
@@ -103,35 +144,27 @@ object Main {
     stream.flatMap(movie => {
                     for (actor <- movie.actors) yield (actor, movie.sentimentScore)
             })
-          .updateStateByKey(updateDirector)
+          .updateStateByKey(updateActor)
           .foreachRDD(rdd => {
             if (!rdd.isEmpty)
-              sendTo(topic, brokers, serializeDirector(rdd))
+              sendTo(topic, brokers, serializeActor(rdd))
           })
   }
   // ---------------------------------------
 
   // ---------------------------------------
   def processDirector(brokers: String, topic: String, stream: DStream[Movie]): Unit = {
-    case class Director(sum: Float, count: Int) {
-      val avg = (sum / scala.math.max(1, count)).toInt
 
-      def +(sum: Float, count: Int): Director = Director(
-        this.sum + sum,
-        this.count + count
-      )
-    }
-
-    def serializeDirector(rdd: RDD[(String, Director)]): String = {
-      val genres = rdd
+    def serializeDirector(rdd: RDD[(String, AvgHolder)]): String = {
+      val data = rdd
         .takeOrdered(100)(Ordering[Int].reverse.on(x => x._2.avg))
         .map(tuple => tuple._1 -> tuple._2.avg).toMap
 
-      Json.stringify(Json.toJson(genres))
+      Json.stringify(Json.toJson(data))
     }
 
-    def updateDirector(newValues: Seq[Option[Float]], state: Option[Director]): Option[Director] = {
-      val prev = state.getOrElse(Director(0, 0))
+    def updateDirector(newValues: Seq[Option[Float]], state: Option[AvgHolder]): Option[AvgHolder] = {
+      val prev = state.getOrElse(AvgHolder(0, 0))
       val values = newValues.flatMap(x => x)
       val current = prev + (values.sum, values.size)
       Some(current)
@@ -152,16 +185,8 @@ object Main {
 
   // ---------------------------------------
   def processGenre(brokers: String, topic: String, stream: DStream[Movie]): Unit = {
-    case class Genre(sum: Float, count: Int) {
-      val avg = (sum / scala.math.max(1, count)).toInt
 
-      def +(sum: Float, count: Int): Genre = Genre(
-        this.sum + sum,
-        this.count + count
-      )
-    }
-
-    def serializeGenre(rdd: RDD[(String, Genre)]): String = {
+    def serializeGenre(rdd: RDD[(String, AvgHolder)]): String = {
       val genres = rdd
         .map(tuple => Map(tuple._1 -> tuple._2.avg))
         .collect()
@@ -170,8 +195,8 @@ object Main {
       Json.stringify(Json.toJson(genres))
     }
 
-    def updateGenre(newValues: Seq[Option[Float]], state: Option[Genre]): Option[Genre] = {
-      val prev = state.getOrElse(Genre(0, 0))
+    def updateGenre(newValues: Seq[Option[Float]], state: Option[AvgHolder]): Option[AvgHolder] = {
+      val prev = state.getOrElse(AvgHolder(0, 0))
       val values = newValues.flatMap(x => x)
       val current = prev + (values.sum, values.size)
       Some(current)
