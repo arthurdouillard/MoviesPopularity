@@ -105,7 +105,8 @@ object Main {
     }
 
 
-    stream.map(movie => (movie.year, movie.sentimentScore))
+    stream.filter(movie => movie.year > 0)
+      .map(movie => (movie.year, movie.sentimentScore))
       .updateStateByKey(updateYear)
       .foreachRDD(rdd => {
         if (!rdd.isEmpty)
