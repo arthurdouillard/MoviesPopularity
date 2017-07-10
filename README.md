@@ -15,7 +15,7 @@ The goal of this project is to use Apache Spark to analyze data about movies.
 ### Fetch movies data
 
 ```shell
-> ./dataFetching/imdbFetcher.py --max {NUMBER_OF_MOVIES} --kafka {BROKER_ADDR} --topic {TOPIC_1} --verbose
+> make fetch
 ```
 
 ### Analyze ML data 

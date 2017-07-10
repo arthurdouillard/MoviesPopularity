@@ -28,7 +28,9 @@ object Main {
      *    1. Set up of the different config need by Spark, Spark-streaming, and Kafka.
      * ---------------------------
      */
-    val sc = new SparkConf().setAppName("MoviesPopularity").setMaster("local[*]")
+    val sc = new SparkConf().setAppName("MoviesPopularity")
+                            .setMaster("local[*]")
+                            .set("spark.streaming.concurrentJobs", "5")
     val ssc = new StreamingContext(sc, Seconds(2))
     ssc.checkpoint("/tmp/temp")
     ssc.sparkContext.addFile("analyser/sentimentAnalyser.py")
